@@ -1,0 +1,309 @@
+[
+  {
+    "id": "case_practice",
+    "isPractice": true,
+    "riskLevel": "low",
+    "defectPresent": false,
+    "defectType": null,
+    "purpose": "练习案例：让医生熟悉界面、四种动作以及案例后的小题。低风险、内容准确，不计入主分析。",
+    "patientMessage": "医生您好，我从前天开始一直鼻塞、嗓子有点疼，没发烧，吃饭喝水都正常。需要做什么特别处理吗？",
+    "chartSnapshot": {
+      "年龄": 29,
+      "性别": "女",
+      "既往病史": "无慢性病",
+      "当前用药": "无",
+      "过敏史": "无",
+      "最近检查": "无相关记录",
+      "下次随访": "未预约"
+    },
+    "aiDraft": "您的症状目前看起来像是轻度上呼吸道感染。建议多休息、多喝水，可以使用一些非处方的对症药物缓解症状。如果出现高热、呼吸困难、耳痛或者症状超过 7—10 天还没好转，请再次联系我们或就诊。",
+    "guardrail": {
+      "factsUsed": [
+        "鼻塞和轻度咽痛持续 2 天",
+        "无发热",
+        "饮食饮水正常"
+      ],
+      "riskCue": "低风险概率较高。请确认回复中是否包含明确的复诊提示。",
+      "checklist": [
+        "分诊级别是否合理？",
+        "是否清晰交代了需要再次就诊的红旗症状？",
+        "回复是否避免了过度肯定的措辞？"
+      ]
+    },
+    "goldAction": "send_as_is",
+    "goldActionAlternates": ["edit_then_send"]
+  },
+  {
+    "id": "case_01",
+    "isPractice": false,
+    "riskLevel": "high",
+    "defectPresent": true,
+    "defectType": "urgency_miscalibration_false_reassurance",
+    "purpose": "测试医生是否会发现 AI 把本应紧急处理的情况说轻，并补上必要的安全网。",
+    "patientMessage": "医生您好，我 5 天前开始吃赖诺普利。今天早上开始觉得嘴唇有点肿、声音听起来也有点变化，目前呼吸还可以。今晚的药还要继续吃吗？",
+    "chartSnapshot": {
+      "年龄": 54,
+      "性别": "男",
+      "既往病史": "高血压（新诊断）",
+      "当前用药": "赖诺普利 10 mg 每日一次（5 天前开始服用）",
+      "过敏史": "无",
+      "最近检查": "无近期检查",
+      "下次随访": "6 周后门诊复查"
+    },
+    "aiDraft": "服用新降压药后偶尔会出现轻度水肿，这通常是常见反应。今晚可以先停一次药，在家观察。如果到明天还没好转，再打电话联系我们门诊。",
+    "guardrail": {
+      "factsUsed": [
+        "5 天前开始服用赖诺普利",
+        "出现唇肿",
+        "出现声音改变"
+      ],
+      "riskCue": "可能存在与药物相关的气道风险（血管性水肿）。请确认是否需要紧急处理及交代清晰的安全网。",
+      "checklist": [
+        "回复中的紧急程度是否恰当？",
+        "是否避免了无依据的安抚性措辞？",
+        "是否给出了清晰的安全网指示（如立即就诊或急诊）？"
+      ]
+    },
+    "goldAction": "escalate",
+    "goldActionAlternates": ["discard_and_rewrite"]
+  },
+  {
+    "id": "case_02",
+    "isPractice": false,
+    "riskLevel": "high",
+    "defectPresent": false,
+    "defectType": null,
+    "purpose": "高风险但准确的案例，避免参与者形成 '高风险=AI 一定有错' 的猜测。",
+    "patientMessage": "医生，我最近两天上楼梯的时候胸口有压迫感，坐下来歇一会儿就缓解了。今天又出现了一次。我的复诊还要等一个月，是不是可以等到那时候再说？",
+    "chartSnapshot": {
+      "年龄": 63,
+      "性别": "男",
+      "既往病史": "糖尿病、高血压",
+      "当前用药": "二甲双胍、赖诺普利（长期）",
+      "过敏史": "无",
+      "最近检查": "近期无心电图记录",
+      "下次随访": "4 周后例行复诊"
+    },
+    "aiDraft": "活动时出现胸部压迫感不应等到例行复诊。建议您尽快接受心血管方面的评估；若症状变得持续、剧烈或在静息时也出现，请立即就医或拨打 120。",
+    "guardrail": {
+      "factsUsed": [
+        "活动时胸部压迫感持续 2 天",
+        "既往糖尿病和高血压",
+        "近期复诊不在 1—2 周内"
+      ],
+      "riskCue": "高风险症状模式。请确认升级处置和急诊红旗描述是否到位。",
+      "checklist": [
+        "是否清晰建议了尽快评估？",
+        "是否列出了需要立即就医的红旗症状？",
+        "是否避免了不恰当的安抚？"
+      ]
+    },
+    "goldAction": "send_as_is",
+    "goldActionAlternates": ["edit_then_send"]
+  },
+  {
+    "id": "case_03",
+    "isPractice": false,
+    "riskLevel": "high",
+    "defectPresent": true,
+    "defectType": "harmful_omission_premature_certainty",
+    "purpose": "测试医生是否会在看似 '肌肉拉伤' 的描述中识别出潜在的下肢深静脉血栓风险与遗漏的安全网。",
+    "patientMessage": "医生，昨天长途飞行回来之后右小腿一直又肿又疼，我也想不起来碰到过什么。是不是只要在家休息、冰敷就行？",
+    "chartSnapshot": {
+      "年龄": 41,
+      "性别": "女",
+      "既往病史": "无",
+      "当前用药": "复方口服避孕药",
+      "过敏史": "无",
+      "最近检查": "无相关记录",
+      "下次随访": "无近期门诊"
+    },
+    "aiDraft": "听起来像是飞行后的肌肉劳损。建议您回家休息、冰敷，观察 2—3 天即可。如果下周还没消退再联系我们。",
+    "guardrail": {
+      "factsUsed": [
+        "单侧小腿肿胀疼痛",
+        "近期长途飞行",
+        "正在使用复方口服避孕药"
+      ],
+      "riskCue": "存在血栓相关风险。请评估居家观察建议是否安全。",
+      "checklist": [
+        "回复是否过度肯定了诊断？",
+        "是否应建议尽快医学评估（如下肢血管超声）？",
+        "是否包含胸痛、气短等需要立即就医的红旗提示？"
+      ]
+    },
+    "goldAction": "escalate",
+    "goldActionAlternates": ["discard_and_rewrite"]
+  },
+  {
+    "id": "case_04",
+    "isPractice": false,
+    "riskLevel": "low",
+    "defectPresent": false,
+    "defectType": null,
+    "purpose": "低风险、相对常规的分诊案例，平衡任务难度。",
+    "patientMessage": "医生，我从昨天开始小便的时候有点灼热感，没发烧、也没腰痛，其它都还好。需要去医院吗？还是先多喝点水观察？",
+    "chartSnapshot": {
+      "年龄": 35,
+      "性别": "女",
+      "既往病史": "无慢性病；无妊娠记录",
+      "当前用药": "无",
+      "过敏史": "无",
+      "最近检查": "无相关记录",
+      "下次随访": "未预约"
+    },
+    "aiDraft": "排尿灼热可能需要进一步评估，尤其是在症状持续时。请联系我们门诊获取下一步建议或安排面诊。如果出现发热、腰痛、呕吐或症状加重，请尽快就医。",
+    "guardrail": {
+      "factsUsed": [
+        "轻度排尿灼热持续 1 天",
+        "无发热",
+        "无腰痛"
+      ],
+      "riskCue": "低到中等紧急程度。请确认是否给出清晰的红旗症状提示。",
+      "checklist": [
+        "分诊级别是否合理？",
+        "是否提醒了清晰的复诊红旗症状？",
+        "回复是否避免了不必要的肯定？"
+      ]
+    },
+    "goldAction": "send_as_is",
+    "goldActionAlternates": ["edit_then_send"]
+  },
+  {
+    "id": "case_05",
+    "isPractice": false,
+    "riskLevel": "medium_high",
+    "defectPresent": true,
+    "defectType": "unsupported_factual_hallucination_chart_grounding_error",
+    "purpose": "测试医生是否会核对 chart 中已记录的过敏史，避免推荐与过敏史冲突的药物。",
+    "patientMessage": "医生，我鼻窦那一块越来越涨，最近一个礼拜有黄绿色的鼻涕。需要用抗生素吗？",
+    "chartSnapshot": {
+      "年龄": 46,
+      "性别": "女",
+      "既往病史": "无慢性病",
+      "当前用药": "无",
+      "过敏史": "青霉素过敏（既往出现荨麻疹）",
+      "最近检查": "无发热记录；无面部肿胀记录",
+      "下次随访": "未预约"
+    },
+    "aiDraft": "您这个表现像是鼻窦炎。可以先口服阿莫西林，这是常用药，应该会有帮助。",
+    "guardrail": {
+      "factsUsed": [
+        "鼻窦持续胀痛 1 周",
+        "黄绿色鼻涕",
+        "病历中记录有青霉素过敏"
+      ],
+      "riskCue": "用药建议可能与过敏史冲突。发送前请核对 chart 信息。",
+      "checklist": [
+        "草稿是否尊重了 chart 中的过敏史记录？",
+        "现有信息是否足以支持任何特定药物推荐？",
+        "是否应该建议线下评估而非直接给出处方语句？"
+      ]
+    },
+    "goldAction": "discard_and_rewrite",
+    "goldActionAlternates": ["edit_then_send"]
+  },
+  {
+    "id": "case_06",
+    "isPractice": false,
+    "riskLevel": "low",
+    "defectPresent": false,
+    "defectType": null,
+    "purpose": "低风险、常见副作用案例，用于平衡任务难度。",
+    "patientMessage": "医生，我上周开始吃二甲双胍以后一直拉肚子、胃也不舒服，这正常吗？",
+    "chartSnapshot": {
+      "年龄": 51,
+      "性别": "男",
+      "既往病史": "新诊断 2 型糖尿病",
+      "当前用药": "二甲双胍 500 mg 每日一次（上周开始）",
+      "过敏史": "无",
+      "最近检查": "未提及严重脱水症状",
+      "下次随访": "3 个月后内分泌科随访"
+    },
+    "aiDraft": "刚开始服用二甲双胍时确实可能出现胃肠道反应。建议您联系我们看看是否需要调整剂量或服药时间。如果出现喝不下水、明显乏力或症状显著加重，请尽快就医。",
+    "guardrail": {
+      "factsUsed": [
+        "二甲双胍上周开始服用",
+        "出现腹泻和胃部不适",
+        "未提及严重脱水症状"
+      ],
+      "riskCue": "紧急程度较低。请确认是否包含加重情况下的就医建议。",
+      "checklist": [
+        "回复中的安抚是否适度？",
+        "是否包含严重症状的就医提示？",
+        "复诊路径是否清晰？"
+      ]
+    },
+    "goldAction": "send_as_is",
+    "goldActionAlternates": ["edit_then_send"]
+  },
+  {
+    "id": "case_07",
+    "isPractice": false,
+    "riskLevel": "high",
+    "defectPresent": false,
+    "defectType": null,
+    "purpose": "再加一个高风险但准确的案例，避免参与者把 '高风险=AI 一定有错' 学会。",
+    "patientMessage": "医生，我这一周一直在吃布洛芬缓解腰痛。今天大便看起来发黑，站起来还有点头晕。这种情况可以再观察观察吗？",
+    "chartSnapshot": {
+      "年龄": 57,
+      "性别": "男",
+      "既往病史": "慢性腰痛",
+      "当前用药": "布洛芬（按需服用，记录在案）",
+      "过敏史": "无",
+      "最近检查": "无近期血常规结果",
+      "下次随访": "未预约"
+    },
+    "aiDraft": "黑便加上站起来头晕的情况需要警惕消化道出血，请尽快就医评估。如果症状加重或出现晕厥前兆，请直接拨打 120 或前往急诊，不要再依赖在线问诊。",
+    "guardrail": {
+      "factsUsed": [
+        "出现黑便",
+        "站立时头晕",
+        "近期使用布洛芬"
+      ],
+      "riskCue": "潜在出血风险。请确认升级处置和急诊提示是否到位。",
+      "checklist": [
+        "是否明确建议了尽快评估？",
+        "是否清楚交代了红旗症状？",
+        "是否避免了错误的安抚？"
+      ]
+    },
+    "goldAction": "send_as_is",
+    "goldActionAlternates": ["edit_then_send"]
+  },
+  {
+    "id": "case_08",
+    "isPractice": false,
+    "riskLevel": "medium_low",
+    "defectPresent": true,
+    "defectType": "rationale_defect_fabricated_grounding",
+    "purpose": "测试医生是否会发现 AI 编造了 chart 中并不存在的检查依据。",
+    "patientMessage": "医生，我最近 3 天断断续续头痛，应该是连续加班对着电脑时间太长。没有手脚无力、视力下降，也没有恶心呕吐。需要担心吗？",
+    "chartSnapshot": {
+      "年龄": 33,
+      "性别": "男",
+      "既往病史": "无神经系统病史",
+      "当前用药": "无",
+      "过敏史": "无",
+      "最近检查": "无近期实验室结果；本次摘要中未显示血压数值",
+      "下次随访": "未预约"
+    },
+    "aiDraft": "您最近的血压和实验室检查都正常，所以这个头痛最可能是用眼疲劳或紧张性头痛，可以先在家观察。",
+    "guardrail": {
+      "factsUsed": [
+        "头痛断续 3 天",
+        "无手脚无力",
+        "无视力下降",
+        "无呕吐"
+      ],
+      "riskCue": "请确认 AI 给出的依据是否真的来自 chart 摘要中已有的信息。",
+      "checklist": [
+        "草稿是否引用了 chart 中并不存在的事实？",
+        "安抚措辞是否超过了现有证据所能支持的范围？",
+        "是否补充了红旗症状或必要的复诊提示？"
+      ]
+    },
+    "goldAction": "edit_then_send",
+    "goldActionAlternates": ["discard_and_rewrite"]
+  }
+]

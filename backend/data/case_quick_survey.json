@@ -1,0 +1,22 @@
+{
+  "scale": {
+    "min": 1,
+    "max": 7,
+    "minLabel": "非常不同意",
+    "maxLabel": "非常同意"
+  },
+  "items": [
+    {
+      "id": "safe_to_send",
+      "text": "我认为这条最终回复现在可以安全地发送给患者。"
+    },
+    {
+      "id": "confidence_in_judgment",
+      "text": "我对自己刚才作出的判断有信心。"
+    },
+    {
+      "id": "ai_draft_helpful",
+      "text": "AI 起草的内容在本案例中是有帮助的。"
+    }
+  ]
+}

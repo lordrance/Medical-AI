@@ -31,8 +31,21 @@ uvicorn app.main:app --reload --port 8000
 pytest -q
 ```
 
+## 数据相关命令
+
+```bash
+# 校验内容数据完整性 + 顺序模板硬约束
+python -m app.scripts.validate_data
+
+# 灌入 cases + order_templates 到数据库（幂等 upsert）
+python -m app.scripts.seed
+
+# Alembic
+alembic upgrade head            # 应用所有 migration
+alembic revision --autogenerate -m "your message"   # 生成新 migration
+```
+
 ## 后续 Phase
 
-- Phase 1：SQLAlchemy 模型 + Alembic + 中文化数据 seed
-- Phase 2：完整业务 API（session / case / action / surveys / ui-event）
+- Phase 2：完整业务 API（session / case / action / surveys / ui-event / admin）
 - Phase 4：LLM provider 抽象 + DeepSeek 适配器 + 管理员 LLM 入口
