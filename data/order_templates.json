@@ -1,0 +1,21 @@
+{
+  "description": "4 套 case 顺序模板。约束：(1) defective case 不连续 ≥3；(2) 高风险 case 不集中在最后；(3) 低风险/准确 case 不全在前半段。defective={01,03,05,08}，high={01,02,03,07}。",
+  "templates": [
+    {
+      "id": 1,
+      "order": ["case_02", "case_01", "case_04", "case_05", "case_07", "case_03", "case_06", "case_08"]
+    },
+    {
+      "id": 2,
+      "order": ["case_04", "case_03", "case_07", "case_01", "case_06", "case_02", "case_08", "case_05"]
+    },
+    {
+      "id": 3,
+      "order": ["case_01", "case_06", "case_02", "case_08", "case_04", "case_07", "case_05", "case_03"]
+    },
+    {
+      "id": 4,
+      "order": ["case_03", "case_06", "case_02", "case_08", "case_04", "case_01", "case_05", "case_07"]
+    }
+  ]
+}

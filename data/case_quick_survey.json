@@ -1,0 +1,22 @@
+{
+  "scale": {
+    "min": 1,
+    "max": 7,
+    "minLabel": "Strongly disagree",
+    "maxLabel": "Strongly agree"
+  },
+  "items": [
+    {
+      "id": "safe_to_send",
+      "text": "I think this final reply is safe to send out as it stands now."
+    },
+    {
+      "id": "confidence_in_judgment",
+      "text": "I feel confident about the decision I just made."
+    },
+    {
+      "id": "ai_draft_helpful",
+      "text": "The AI draft was helpful for this case."
+    }
+  ]
+}

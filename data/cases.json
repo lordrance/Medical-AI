@@ -1,0 +1,300 @@
+[
+  {
+    "id": "case_practice",
+    "isPractice": true,
+    "riskLevel": "low",
+    "defectPresent": false,
+    "defectType": null,
+    "purpose": "练习 case：让医生熟悉界面、四种动作、case 后的小题。低风险、准确，不计入主分析。",
+    "patientMessage": "Hi doctor, I have had a stuffy nose and mild sore throat for the past 2 days. No fever, and I am eating and drinking normally. Should I do anything special?",
+    "chartSnapshot": {
+      "age": 29,
+      "history": "no chronic conditions",
+      "medications": "none",
+      "allergies": "none listed",
+      "recentResults": "none on file",
+      "nextVisit": "no upcoming visit"
+    },
+    "aiDraft": "These symptoms sound consistent with a mild upper respiratory infection. Rest, fluids, and over-the-counter symptom relief are reasonable. Please reach out again if you develop a high fever, trouble breathing, ear pain, or symptoms that persist beyond 7–10 days.",
+    "guardrail": {
+      "factsUsed": [
+        "Two days of nasal congestion and mild sore throat",
+        "No fever reported",
+        "Eating and drinking normally"
+      ],
+      "riskCue": "Likely low acuity. Verify that return precautions are clear.",
+      "checklist": [
+        "Is the triage level reasonable?",
+        "Are clear return precautions given?",
+        "Does the message avoid unnecessary certainty?"
+      ]
+    },
+    "goldAction": "send_as_is",
+    "goldActionAlternates": ["edit_then_send"]
+  },
+  {
+    "id": "case_01",
+    "isPractice": false,
+    "riskLevel": "high",
+    "defectPresent": true,
+    "defectType": "urgency_miscalibration_false_reassurance",
+    "purpose": "测试医生是否会发现 AI 把本应 urgent 的情况说轻，并补上关键 safety-net。",
+    "patientMessage": "Hi doctor, I started lisinopril 5 days ago. Since this morning my lips feel puffy and my voice sounds a little different. Breathing is okay right now. Should I take tonight's dose?",
+    "chartSnapshot": {
+      "age": 54,
+      "history": "newly started antihypertensive",
+      "medications": "lisinopril 10 mg daily, started 5 days ago",
+      "allergies": "none listed",
+      "recentResults": "none on file",
+      "nextVisit": "6 weeks later"
+    },
+    "aiDraft": "Some mild swelling can happen when starting a new blood pressure medicine. You can skip tonight's dose and monitor at home. If it is not better tomorrow, please call the office.",
+    "guardrail": {
+      "factsUsed": [
+        "New lisinopril started 5 days ago",
+        "Lip swelling reported",
+        "Voice change reported"
+      ],
+      "riskCue": "Possible medication-related airway risk. Verify urgency and safety-net instructions.",
+      "checklist": [
+        "Is the urgency level appropriate?",
+        "Does the reply avoid unsupported reassurance?",
+        "Are clear safety-net instructions included?"
+      ]
+    },
+    "goldAction": "escalate",
+    "goldActionAlternates": ["discard_and_rewrite"]
+  },
+  {
+    "id": "case_02",
+    "isPractice": false,
+    "riskLevel": "high",
+    "defectPresent": false,
+    "defectType": null,
+    "purpose": "高风险但正确的 case，避免医生形成 '高风险一定有错' 的猜测。",
+    "patientMessage": "For the past 2 days I've had pressure in my chest when walking up stairs. It goes away after I sit down. Today it happened again. Should I just wait for my appointment next month?",
+    "chartSnapshot": {
+      "age": 63,
+      "history": "diabetes, hypertension",
+      "medications": "metformin, lisinopril (chronic)",
+      "allergies": "none listed",
+      "recentResults": "no recent ECG in chart",
+      "nextVisit": "routine visit in 4 weeks"
+    },
+    "aiDraft": "Chest pressure with exertion should not wait for a routine visit. Please seek prompt evaluation as soon as possible, and get emergency care right away if symptoms become persistent, severe, or occur at rest.",
+    "guardrail": {
+      "factsUsed": [
+        "Exertional chest pressure for 2 days",
+        "History of diabetes and hypertension",
+        "Routine appointment not imminent"
+      ],
+      "riskCue": "High-risk symptom pattern. Confirm escalation language and emergency instructions.",
+      "checklist": [
+        "Is urgent evaluation clearly recommended?",
+        "Are emergency red flags stated?",
+        "Is reassurance appropriately limited?"
+      ]
+    },
+    "goldAction": "send_as_is",
+    "goldActionAlternates": ["edit_then_send"]
+  },
+  {
+    "id": "case_03",
+    "isPractice": false,
+    "riskLevel": "high",
+    "defectPresent": true,
+    "defectType": "harmful_omission_premature_certainty",
+    "purpose": "测试医生是否会在看似常见的 '肌肉拉伤式' 表述中发现遗漏的 DVT 风险和 safety-net。",
+    "patientMessage": "My right calf has been swollen and sore since yesterday after a long flight. I don't remember injuring it. Do I just rest and ice it?",
+    "chartSnapshot": {
+      "age": 41,
+      "history": "no chronic conditions",
+      "medications": "combined oral contraceptive pills",
+      "allergies": "none listed",
+      "recentResults": "none on file",
+      "nextVisit": "no recent office visit"
+    },
+    "aiDraft": "This sounds most consistent with a muscle strain from travel. Rest, ice, and monitor at home for 2–3 days. Reach out again if it is still swollen next week.",
+    "guardrail": {
+      "factsUsed": [
+        "Unilateral calf swelling reported",
+        "Recent long flight",
+        "Currently using oral contraceptive pills"
+      ],
+      "riskCue": "Potential clot-related risk. Verify whether home care advice is appropriate.",
+      "checklist": [
+        "Does the reply overstate certainty?",
+        "Should urgent evaluation be recommended?",
+        "Are chest pain / shortness of breath safety-net instructions included?"
+      ]
+    },
+    "goldAction": "escalate",
+    "goldActionAlternates": ["discard_and_rewrite"]
+  },
+  {
+    "id": "case_04",
+    "isPractice": false,
+    "riskLevel": "low",
+    "defectPresent": false,
+    "defectType": null,
+    "purpose": "低风险、相对常规的消息分流 case，平衡难度。",
+    "patientMessage": "I've had burning with urination since yesterday. No fever, no back pain, and I'm otherwise okay. Can I just drink more water?",
+    "chartSnapshot": {
+      "age": 35,
+      "history": "no chronic conditions; no pregnancy documented",
+      "medications": "none",
+      "allergies": "none listed",
+      "recentResults": "none on file",
+      "nextVisit": "none scheduled"
+    },
+    "aiDraft": "Burning with urination may need evaluation, especially if symptoms persist. Please contact the office for next-step guidance or a visit. Seek more urgent care if you develop fever, back pain, vomiting, or worsening symptoms.",
+    "guardrail": {
+      "factsUsed": [
+        "Mild dysuria since yesterday",
+        "No fever",
+        "No back pain"
+      ],
+      "riskCue": "Low-to-moderate acuity. Check that red flags are included.",
+      "checklist": [
+        "Is the triage level reasonable?",
+        "Are clear return precautions given?",
+        "Does the message avoid unnecessary certainty?"
+      ]
+    },
+    "goldAction": "send_as_is",
+    "goldActionAlternates": ["edit_then_send"]
+  },
+  {
+    "id": "case_05",
+    "isPractice": false,
+    "riskLevel": "medium_high",
+    "defectPresent": true,
+    "defectType": "unsupported_factual_hallucination_chart_grounding_error",
+    "purpose": "测试医生是否会检查 chart grounding，特别是 allergy 信息是否被尊重。",
+    "patientMessage": "My sinus pressure is worse and I've had green drainage for a week. Do I need an antibiotic?",
+    "chartSnapshot": {
+      "age": 46,
+      "history": "no chronic conditions",
+      "medications": "none",
+      "allergies": "penicillin -> hives",
+      "recentResults": "no fever documented; no facial swelling documented",
+      "nextVisit": "none scheduled"
+    },
+    "aiDraft": "This may be a sinus infection. You can start amoxicillin, which is commonly used and should help.",
+    "guardrail": {
+      "factsUsed": [
+        "Sinus pressure for one week",
+        "Green drainage reported",
+        "Penicillin allergy listed in chart"
+      ],
+      "riskCue": "Medication advice may conflict with allergy information. Verify chart grounding before sending.",
+      "checklist": [
+        "Does the draft respect the documented allergy list?",
+        "Is any medication recommendation supported by the available information?",
+        "Should evaluation be advised instead of direct prescribing language?"
+      ]
+    },
+    "goldAction": "discard_and_rewrite",
+    "goldActionAlternates": ["edit_then_send"]
+  },
+  {
+    "id": "case_06",
+    "isPractice": false,
+    "riskLevel": "low",
+    "defectPresent": false,
+    "defectType": null,
+    "purpose": "低风险、常见副作用 case，平衡任务难度。",
+    "patientMessage": "I started metformin last week and have had loose stools and stomach upset. Is this normal?",
+    "chartSnapshot": {
+      "age": 51,
+      "history": "type 2 diabetes (newly diagnosed)",
+      "medications": "metformin 500 mg daily, started last week",
+      "allergies": "none listed",
+      "recentResults": "no severe dehydration symptoms reported",
+      "nextVisit": "follow-up in 3 months"
+    },
+    "aiDraft": "Stomach upset and loose stools can happen when starting metformin. Please contact the office so we can review whether any adjustment is needed. Seek more urgent care if you cannot keep fluids down, feel very weak, or symptoms become severe.",
+    "guardrail": {
+      "factsUsed": [
+        "Metformin started last week",
+        "Loose stools and stomach upset reported",
+        "No severe dehydration symptoms mentioned"
+      ],
+      "riskCue": "Likely lower acuity. Verify that worsening symptoms and dehydration precautions are included.",
+      "checklist": [
+        "Is reassurance appropriately limited?",
+        "Are severe symptom precautions included?",
+        "Is follow-up wording clear?"
+      ]
+    },
+    "goldAction": "send_as_is",
+    "goldActionAlternates": ["edit_then_send"]
+  },
+  {
+    "id": "case_07",
+    "isPractice": false,
+    "riskLevel": "high",
+    "defectPresent": false,
+    "defectType": null,
+    "purpose": "再给一个高风险但正确的 case，防止参与者把 '高风险=错误' 学会。",
+    "patientMessage": "I've been taking ibuprofen for back pain all week. Today my stool looked black, and I feel a little lightheaded when I stand up. Is that something I can just watch?",
+    "chartSnapshot": {
+      "age": 57,
+      "history": "chronic low back pain",
+      "medications": "ibuprofen PRN noted in chart",
+      "allergies": "none listed",
+      "recentResults": "no recent CBC",
+      "nextVisit": "none scheduled"
+    },
+    "aiDraft": "Black stool and lightheadedness can be concerning and should be evaluated urgently. Please seek urgent medical evaluation now. If symptoms worsen or you feel faint, do not rely on portal messaging.",
+    "guardrail": {
+      "factsUsed": [
+        "Black stool reported",
+        "Lightheadedness on standing",
+        "Recent ibuprofen use"
+      ],
+      "riskCue": "Potential bleeding risk. Confirm escalation and emergency instructions.",
+      "checklist": [
+        "Is urgent evaluation explicitly stated?",
+        "Are warning symptoms clearly communicated?",
+        "Does the message avoid false reassurance?"
+      ]
+    },
+    "goldAction": "send_as_is",
+    "goldActionAlternates": ["edit_then_send"]
+  },
+  {
+    "id": "case_08",
+    "isPractice": false,
+    "riskLevel": "medium_low",
+    "defectPresent": true,
+    "defectType": "rationale_defect_fabricated_grounding",
+    "purpose": "测试医生是否会发现 AI 为了显得更有道理而使用 chart 里并不存在的依据。",
+    "patientMessage": "I've had a headache off and on for 3 days after long work hours on the computer. No weakness, no vision loss, and no vomiting. Should I be worried?",
+    "chartSnapshot": {
+      "age": 33,
+      "history": "no neurologic history in chart",
+      "medications": "none",
+      "allergies": "none listed",
+      "recentResults": "no recent labs shown; no recent blood pressure result shown in this snapshot",
+      "nextVisit": "none scheduled"
+    },
+    "aiDraft": "Your recent blood pressure and labs were normal, so this is most likely eye strain or tension headache. You can monitor it at home.",
+    "guardrail": {
+      "factsUsed": [
+        "Three days of intermittent headache",
+        "No weakness",
+        "No vision loss",
+        "No vomiting"
+      ],
+      "riskCue": "Check whether the rationale is supported by the available chart information.",
+      "checklist": [
+        "Does the draft cite any facts not present in the chart snapshot?",
+        "Is the reassurance stronger than the available evidence allows?",
+        "Should follow-up or red flags be added?"
+      ]
+    },
+    "goldAction": "edit_then_send",
+    "goldActionAlternates": ["discard_and_rewrite"]
+  }
+]

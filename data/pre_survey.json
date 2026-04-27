@@ -1,0 +1,82 @@
+{
+  "title": "Pre-Survey",
+  "description": "在开始 case 审核前，请回答以下背景问题。约 3–4 分钟。",
+  "items": [
+    {
+      "id": "specialty",
+      "type": "select",
+      "label": "Primary specialty",
+      "required": true,
+      "options": [
+        "Internal Medicine",
+        "Family Medicine",
+        "Emergency Medicine",
+        "Pediatrics",
+        "OB/GYN",
+        "Surgery",
+        "Cardiology",
+        "Other"
+      ]
+    },
+    {
+      "id": "training_level",
+      "type": "select",
+      "label": "Training level",
+      "required": true,
+      "options": [
+        "Medical student",
+        "Resident (PGY-1 to PGY-3)",
+        "Resident (PGY-4+)",
+        "Fellow",
+        "Attending"
+      ]
+    },
+    {
+      "id": "years_practice",
+      "type": "number",
+      "label": "Years in practice (post-training)",
+      "required": true,
+      "min": 0,
+      "max": 60
+    },
+    {
+      "id": "weekly_message_volume",
+      "type": "select",
+      "label": "Approximate number of patient portal messages you handle per week",
+      "required": true,
+      "options": [
+        "0",
+        "1–10",
+        "11–25",
+        "26–50",
+        "51–100",
+        "100+"
+      ]
+    },
+    {
+      "id": "prior_ai_use",
+      "type": "select",
+      "label": "Have you previously used AI tools (e.g., ChatGPT, GPT-based EHR drafting) in clinical work?",
+      "required": true,
+      "options": [
+        "Never",
+        "A few times",
+        "Monthly",
+        "Weekly",
+        "Daily"
+      ]
+    },
+    {
+      "id": "ai_familiarity",
+      "type": "likert",
+      "label": "How familiar are you with how generative AI drafting tools work?",
+      "required": true,
+      "scale": {
+        "min": 1,
+        "max": 7,
+        "minLabel": "Not familiar at all",
+        "maxLabel": "Very familiar"
+      }
+    }
+  ]
+}

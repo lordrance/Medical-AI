@@ -1,0 +1,65 @@
+{
+  "title": "Post-Survey",
+  "description": "感谢您完成 case 审核。请回答以下关于您对 AI 起草工具的整体看法。约 6–8 分钟。",
+  "scale": {
+    "min": 1,
+    "max": 7,
+    "minLabel": "Strongly disagree",
+    "maxLabel": "Strongly agree"
+  },
+  "blocks": [
+    {
+      "id": "trust",
+      "title": "Trust in AI Drafting",
+      "items": [
+        { "id": "trust_1", "text": "I trust the AI drafts to be clinically reasonable starting points." },
+        { "id": "trust_2", "text": "I would feel comfortable sending an AI draft after only a quick review." },
+        { "id": "trust_3", "text": "The AI draft tool generally captures the most important issues." }
+      ]
+    },
+    {
+      "id": "transparency",
+      "title": "Transparency / Interpretability",
+      "items": [
+        { "id": "transparency_1", "text": "It was clear what information the AI used when drafting the reply." },
+        { "id": "transparency_2", "text": "I could tell when the AI was uncertain or relying on weak evidence." },
+        { "id": "transparency_3", "text": "I could tell when the AI's reasoning did not match the chart." }
+      ]
+    },
+    {
+      "id": "workflow_fit",
+      "title": "Workflow Fit / Burden",
+      "items": [
+        { "id": "workflow_1", "text": "Reviewing AI drafts in this format would fit into my normal workflow." },
+        { "id": "workflow_2", "text": "Reviewing AI drafts saved me effort compared to writing replies from scratch." },
+        { "id": "workflow_3", "text": "The interface added cognitive burden to my decision-making." }
+      ]
+    },
+    {
+      "id": "accountability",
+      "title": "Accountability / Responsibility",
+      "items": [
+        { "id": "accountability_1", "text": "I, as the reviewing clinician, am ultimately responsible for what gets sent to the patient." },
+        { "id": "accountability_2", "text": "If the AI draft contained an error and I sent it as is, I would be primarily responsible." },
+        { "id": "accountability_3", "text": "Clear responsibility boundaries between clinician and AI tool exist in this workflow." }
+      ]
+    },
+    {
+      "id": "overreliance_concern",
+      "title": "Overreliance Concern",
+      "items": [
+        { "id": "overreliance_1", "text": "I worry that clinicians might rely on AI drafts more than they should." },
+        { "id": "overreliance_2", "text": "I worry that I personally might rely on AI drafts more than I should." },
+        { "id": "overreliance_3", "text": "Time pressure could make clinicians send AI drafts without sufficient review." }
+      ]
+    },
+    {
+      "id": "open_ended",
+      "title": "Open-ended (Optional)",
+      "items": [
+        { "id": "open_1", "type": "text", "text": "What feature, if added, would most improve your ability to review AI drafts safely?" },
+        { "id": "open_2", "type": "text", "text": "Any other comments about the experience?" }
+      ]
+    }
+  ]
+}
