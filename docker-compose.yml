@@ -1,8 +1,14 @@
-version: "3.9"
+# Development docker-compose.
+# Brings up postgres + backend. Frontend is run locally with `pnpm dev` for HMR.
+#
+# Quick start:
+#   cp backend/.env.example .env
+#   docker compose up --build
 
 services:
   db:
     image: postgres:15-alpine
+    restart: unless-stopped
     environment:
       POSTGRES_USER: medai
       POSTGRES_PASSWORD: medai
@@ -18,18 +24,31 @@ services:
       retries: 10
 
   backend:
-    build: ./backend
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    restart: unless-stopped
     environment:
       DATABASE_URL: postgresql+asyncpg://medai:medai@db:5432/medai
       ADMIN_TOKEN: ${ADMIN_TOKEN:-change-me-in-production}
-      CORS_ORIGINS: '["http://localhost:3000"]'
+      CORS_ORIGINS: '["http://localhost:3000","http://127.0.0.1:3000"]'
       LLM_PROVIDER: ${LLM_PROVIDER:-disabled}
+      LLM_DRY_RUN: ${LLM_DRY_RUN:-false}
       DEEPSEEK_API_KEY: ${DEEPSEEK_API_KEY:-}
+      DEEPSEEK_BASE_URL: ${DEEPSEEK_BASE_URL:-https://api.deepseek.com}
+      DEEPSEEK_MODEL: ${DEEPSEEK_MODEL:-deepseek-chat}
+      RUN_MIGRATIONS: "true"
+      SEED_ON_START: "true"
     depends_on:
       db:
         condition: service_healthy
     ports:
       - "8000:8000"
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:8000/healthz"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
 
 volumes:
   pgdata:
