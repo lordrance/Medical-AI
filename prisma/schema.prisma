@@ -1,0 +1,145 @@
+// Prisma schema for the medical AI draft review platform
+// SQLite for dev/pilot; switch provider to "postgresql" for production.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model Case {
+  id                  String  @id
+  isPractice          Boolean @default(false)
+  riskLevel           String
+  defectPresent       Boolean @default(false)
+  defectType          String?
+  purpose             String?
+  patientMessage      String
+  chartSnapshotJson   String
+  aiDraft             String
+  factsUsedJson       String
+  riskCue             String
+  checklistJson       String
+  goldAction          String
+  goldActionAlternates String?
+
+  presentations CasePresentation[]
+}
+
+model OrderTemplate {
+  id        Int    @id
+  orderJson String
+
+  participants Participant[]
+}
+
+model Participant {
+  id                    String  @id @default(cuid())
+  condition             String
+  orderTemplateId       Int
+  orderTemplate         OrderTemplate @relation(fields: [orderTemplateId], references: [id])
+
+  specialty             String?
+  trainingLevel         String?
+  yearsPractice         Int?
+  weeklyMessageVolume   String?
+  priorAiUse            String?
+  aiFamiliarity         Int?
+
+  startedAt             DateTime @default(now())
+  completedAt           DateTime?
+  completedFlag         Boolean  @default(false)
+
+  sessions      Session[]
+  postSurveys   PostSurvey[]
+}
+
+model Session {
+  id              String  @id @default(cuid())
+  participantId   String
+  participant     Participant @relation(fields: [participantId], references: [id])
+  status          String   @default("active")
+  startedAt       DateTime @default(now())
+  endedAt         DateTime?
+
+  presentations   CasePresentation[]
+  uiEvents        UiEvent[]
+  postSurveys     PostSurvey[]
+}
+
+model CasePresentation {
+  id          String  @id @default(cuid())
+  sessionId   String
+  session     Session @relation(fields: [sessionId], references: [id])
+  caseId      String
+  case        Case    @relation(fields: [caseId], references: [id])
+  orderIndex  Int
+  startedAt   DateTime @default(now())
+  endedAt     DateTime?
+  durationMs  Int?
+
+  action      Action?
+  caseSurvey  CaseSurvey?
+  uiEvents    UiEvent[]
+
+  @@index([sessionId, orderIndex])
+}
+
+model Action {
+  id                    String  @id @default(cuid())
+  casePresentationId    String  @unique
+  casePresentation      CasePresentation @relation(fields: [casePresentationId], references: [id])
+
+  selectedAction        String
+  sendAsIsFlag          Boolean @default(false)
+  editFlag              Boolean @default(false)
+  discardFlag           Boolean @default(false)
+  escalateFlag          Boolean @default(false)
+  escalateSubtype       String?
+
+  finalReplyText        String
+  finalReplyCharCount   Int
+  editDistance          Int?
+
+  serverReceivedAt      DateTime @default(now())
+}
+
+model CaseSurvey {
+  id                    String  @id @default(cuid())
+  casePresentationId    String  @unique
+  casePresentation      CasePresentation @relation(fields: [casePresentationId], references: [id])
+
+  safeToSend            Int
+  confidenceInJudgment  Int
+  aiDraftHelpful        Int
+
+  serverReceivedAt      DateTime @default(now())
+}
+
+model UiEvent {
+  id                    String  @id @default(cuid())
+  sessionId             String
+  session               Session @relation(fields: [sessionId], references: [id])
+  casePresentationId    String?
+  casePresentation      CasePresentation? @relation(fields: [casePresentationId], references: [id])
+  eventType             String
+  payloadJson           String?
+  clientTs              DateTime?
+  serverTs              DateTime @default(now())
+
+  @@index([sessionId, eventType])
+  @@index([casePresentationId])
+}
+
+model PostSurvey {
+  id              String  @id @default(cuid())
+  participantId   String
+  participant     Participant @relation(fields: [participantId], references: [id])
+  sessionId       String
+  session         Session @relation(fields: [sessionId], references: [id])
+  payloadJson     String
+  serverReceivedAt DateTime @default(now())
+}
