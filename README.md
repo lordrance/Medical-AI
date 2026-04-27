@@ -14,10 +14,10 @@
 | 2 | Next.js 脚手架 + 最小可运行流程 | ✅ |
 | 3 | Plain / Guardrail 两种 condition 渲染 | ✅（随脚手架一起完成） |
 | 4 | 4 种动作 + 文本编辑保存 | ✅（随脚手架一起完成） |
-| 5 | 日志系统加固 | ⏳ 下一步 |
+| 5 | 日志系统加固（edit_distance, client stats, page_blur 等） | ✅ |
 | 6 | 4 套顺序模板随机化 | ✅（随脚手架一起完成） |
-| 7 | 管理员导出（CSV/JSON）+ 混淆矩阵 | ⏳ |
-| 8 | Pilot QA | ⏳ |
+| 7 | 管理员导出（CSV/JSON）+ 混淆矩阵 + 打分量表 | ✅ |
+| 8 | Pilot QA | ⏳ 下一步 |
 
 > Phase 3/4/6 在 Phase 2 的最小流程中已经完整接通，但还会在后续 Phase 单独加强（例如 edit_distance 后算、checklist 展开次数、混淆矩阵导出等）。
 
@@ -144,8 +144,31 @@ medical-ai-review/
 
 ---
 
+## 管理员导出（Phase 7 已就绪）
+
+PI 侧使用方式：
+
+1. 在 `.env` 设 `ADMIN_TOKEN=你的密钥`，重启 dev/server。
+2. 浏览器访问 `http://your-host/admin/export?token=你的密钥`。
+3. 页面顶部展示：完成率（按 condition 分组）、**混淆矩阵（gold × selected，含 accuracy）**、per-case 打分量表（matchGold / matchAlternates / unsafeSendAsIs / errorSurvival / appropriateEscalation / meanDuration / meanEditDistance）、per-participant 表。
+4. 下方 8 张表，每张可下载 CSV / JSON：`participants / sessions / case_presentations / actions / case_surveys / post_surveys / ui_events / summary`。
+
+特别地，`actions` 表导出包含：
+- `finalReplyText`（完整最终回复）
+- `editDistance`（vs. AI draft 的 Levenshtein 距离）
+- `goldAction` + `goldActionMatch`
+- `clientStatsJson`（含 `timeToFirstClickMs / panelClickCounts / checklistChecked / editKeystrokes / pageBlurCount / visibilityHiddenMs` 等）
+
+API 鉴权：`?token=...` 或 `X-Admin-Token` header。无 token 返回 401。
+
+## End-to-end smoke test
+
+```bash
+ADMIN_TOKEN=$(grep ADMIN_TOKEN .env | cut -d= -f2 | tr -d '"') node scripts/e2e-smoke.mjs
+```
+
+模拟 3 个参与者（2 个 perfect + 1 个 lazy），跑完整流程，打印混淆矩阵。
+
 ## 后续 Phase 计划
 
-- **Phase 5**：补足 UI event 埋点，加 edit_distance 后算 job、checklist 展开次数、page_blur/return。
-- **Phase 7**：`/admin/export?token=...` 受保护页面，导出 CSV/JSON，自动算 `selected_action × gold_action` 混淆矩阵。
 - **Phase 8**：邀请 2–3 个内部测试者跑通整个流程，验证 ≤35 分钟可完成、所有日志都能正确导出。

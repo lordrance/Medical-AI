@@ -104,6 +104,8 @@ model Action {
   finalReplyCharCount   Int
   editDistance          Int?
 
+  clientStatsJson       String?
+
   serverReceivedAt      DateTime @default(now())
 }
 

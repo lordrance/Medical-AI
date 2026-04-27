@@ -19,6 +19,18 @@ interface QuickSurveyConfig {
 }
 const quickSurvey = caseQuickSurveyData as QuickSurveyConfig;
 
+export interface CaseClientStats {
+  timeToFirstClickMs: number | null;
+  panelClickCounts: Record<string, number>;
+  checklistChecked: boolean[];
+  checklistToggleCount: number;
+  editKeystrokes: number;
+  editBoxOpenedCount: number;
+  pageBlurCount: number;
+  pageFocusCount: number;
+  visibilityHiddenMs: number;
+}
+
 export interface CasePageProps {
   casePayload: CasePayload;
   condition: Condition;
@@ -29,6 +41,7 @@ export interface CasePageProps {
     escalateSubtype?: string;
     quickSurvey: { item1: number; item2: number; item3: number };
     timing: { startedAt: number; endedAt: number; durationMs: number };
+    clientStats: CaseClientStats;
   }) => Promise<void> | void;
   onLogEvent?: (eventType: string, payload?: Record<string, unknown>) => void;
 }
@@ -41,6 +54,17 @@ export function CasePage({
   onLogEvent,
 }: CasePageProps) {
   const startedAtRef = useRef<number>(Date.now());
+  const firstClickAtRef = useRef<number | null>(null);
+  const panelClicksRef = useRef<Record<string, number>>({});
+  const editKeystrokesRef = useRef<number>(0);
+  const editBoxOpenedCountRef = useRef<number>(0);
+  const checklistRef = useRef<boolean[]>([]);
+  const checklistToggleCountRef = useRef<number>(0);
+  const pageBlurCountRef = useRef<number>(0);
+  const pageFocusCountRef = useRef<number>(0);
+  const hiddenStartRef = useRef<number | null>(null);
+  const visibilityHiddenMsRef = useRef<number>(0);
+
   const [selectedAction, setSelectedAction] =
     useState<SelectedAction | null>(null);
   const [editorText, setEditorText] = useState<string>("");
@@ -51,17 +75,64 @@ export function CasePage({
 
   useEffect(() => {
     startedAtRef.current = Date.now();
+    firstClickAtRef.current = null;
+    panelClicksRef.current = {};
+    editKeystrokesRef.current = 0;
+    editBoxOpenedCountRef.current = 0;
+    checklistRef.current = casePayload.guardrail
+      ? casePayload.guardrail.checklist.map(() => false)
+      : [];
+    checklistToggleCountRef.current = 0;
+    pageBlurCountRef.current = 0;
+    pageFocusCountRef.current = 0;
+    hiddenStartRef.current = null;
+    visibilityHiddenMsRef.current = 0;
+
     setSelectedAction(null);
     setEditorText("");
     setEscalateSubtype("");
     setShowQuickSurvey(false);
     setSurveyAnswers({});
     onLogEvent?.("case_view_start", { caseId: casePayload.id });
+  }, [casePayload.id, casePayload.guardrail, onLogEvent]);
+
+  useEffect(() => {
+    function onVisibility() {
+      if (document.visibilityState === "hidden") {
+        pageBlurCountRef.current += 1;
+        hiddenStartRef.current = Date.now();
+        onLogEvent?.("page_blur", { caseId: casePayload.id });
+      } else if (document.visibilityState === "visible") {
+        pageFocusCountRef.current += 1;
+        if (hiddenStartRef.current != null) {
+          visibilityHiddenMsRef.current += Date.now() - hiddenStartRef.current;
+          hiddenStartRef.current = null;
+        }
+        onLogEvent?.("page_focus", { caseId: casePayload.id });
+      }
+    }
+    document.addEventListener("visibilitychange", onVisibility);
+    return () =>
+      document.removeEventListener("visibilitychange", onVisibility);
   }, [casePayload.id, onLogEvent]);
 
+  function recordFirstClick() {
+    if (firstClickAtRef.current == null) {
+      firstClickAtRef.current = Date.now();
+    }
+  }
+  function bumpPanel(panel: string) {
+    panelClicksRef.current[panel] = (panelClicksRef.current[panel] ?? 0) + 1;
+  }
+
   function chooseAction(a: SelectedAction) {
+    recordFirstClick();
+    bumpPanel("action_button");
     setSelectedAction(a);
-    onLogEvent?.("action_button_selected", { caseId: casePayload.id, action: a });
+    onLogEvent?.("action_button_selected", {
+      caseId: casePayload.id,
+      action: a,
+    });
     if (a === "edit_then_send") {
       setEditorText(casePayload.aiDraft);
     } else if (a === "discard_and_rewrite") {
@@ -104,18 +175,37 @@ export function CasePage({
         : selectedAction === "escalate"
           ? "[escalated]"
           : editorText;
+
+    const clientStats: CaseClientStats = {
+      timeToFirstClickMs:
+        firstClickAtRef.current != null
+          ? firstClickAtRef.current - startedAtRef.current
+          : null,
+      panelClickCounts: { ...panelClicksRef.current },
+      checklistChecked: [...checklistRef.current],
+      checklistToggleCount: checklistToggleCountRef.current,
+      editKeystrokes: editKeystrokesRef.current,
+      editBoxOpenedCount: editBoxOpenedCountRef.current,
+      pageBlurCount: pageBlurCountRef.current,
+      pageFocusCount: pageFocusCountRef.current,
+      visibilityHiddenMs: visibilityHiddenMsRef.current,
+    };
+
     try {
       await onSubmit({
         selectedAction,
         finalReplyText,
         escalateSubtype:
-          selectedAction === "escalate" ? escalateSubtype || undefined : undefined,
+          selectedAction === "escalate"
+            ? escalateSubtype || undefined
+            : undefined,
         quickSurvey: {
           item1: surveyAnswers["safe_to_send"],
           item2: surveyAnswers["confidence_in_judgment"],
           item3: surveyAnswers["ai_draft_helpful"],
         },
         timing: { startedAt: startedAtRef.current, endedAt, durationMs },
+        clientStats,
       });
     } finally {
       setSubmitting(false);
@@ -125,7 +215,9 @@ export function CasePage({
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
-        <div className="text-sm font-medium text-slate-600">{progressLabel}</div>
+        <div className="text-sm font-medium text-slate-600">
+          {progressLabel}
+        </div>
         <div className="text-xs text-slate-400">
           Condition:{" "}
           <span className="rounded bg-slate-200 px-2 py-0.5 font-mono text-slate-700">
@@ -136,17 +228,41 @@ export function CasePage({
 
       {!showQuickSurvey && (
         <>
-          <Section title="Patient Message" eventKey="patient_message_panel" onLogEvent={onLogEvent}>
+          <Section
+            title="Patient Message"
+            eventKey="patient_message_panel"
+            onLogEvent={onLogEvent}
+            onTrack={(p) => {
+              recordFirstClick();
+              bumpPanel(p);
+            }}
+          >
             <p className="whitespace-pre-line leading-relaxed text-slate-800">
               {casePayload.patientMessage}
             </p>
           </Section>
 
-          <Section title="Chart Snapshot" eventKey="chart_panel" onLogEvent={onLogEvent}>
+          <Section
+            title="Chart Snapshot"
+            eventKey="chart_panel"
+            onLogEvent={onLogEvent}
+            onTrack={(p) => {
+              recordFirstClick();
+              bumpPanel(p);
+            }}
+          >
             <ChartSnapshotView snapshot={casePayload.chartSnapshot} />
           </Section>
 
-          <Section title="AI Draft Reply" eventKey="ai_draft_panel" onLogEvent={onLogEvent}>
+          <Section
+            title="AI Draft Reply"
+            eventKey="ai_draft_panel"
+            onLogEvent={onLogEvent}
+            onTrack={(p) => {
+              recordFirstClick();
+              bumpPanel(p);
+            }}
+          >
             <p className="whitespace-pre-line leading-relaxed text-slate-800">
               {casePayload.aiDraft}
             </p>
@@ -157,10 +273,24 @@ export function CasePage({
               guardrail={casePayload.guardrail}
               caseId={casePayload.id}
               onLogEvent={onLogEvent}
+              onPanelClick={(p) => {
+                recordFirstClick();
+                bumpPanel(p);
+              }}
+              onChecklistToggle={(idx, checked) => {
+                recordFirstClick();
+                checklistRef.current[idx] = checked;
+                checklistToggleCountRef.current += 1;
+              }}
             />
           )}
 
-          <Section title="Action" eventKey="action_panel" onLogEvent={onLogEvent}>
+          <Section
+            title="Action"
+            eventKey="action_panel"
+            onLogEvent={onLogEvent}
+            onTrack={(p) => bumpPanel(p)}
+          >
             <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
               {ALL_ACTIONS.map((a) => (
                 <button
@@ -200,18 +330,26 @@ export function CasePage({
                 <label className="label">
                   Final reply{" "}
                   <span className="text-slate-400">
-                    ({selectedAction === "edit_then_send"
+                    (
+                    {selectedAction === "edit_then_send"
                       ? "pre-filled with AI draft"
-                      : "rewrite from scratch"})
+                      : "rewrite from scratch"}
+                    )
                   </span>
                 </label>
                 <textarea
                   className="textarea"
                   value={editorText}
-                  onFocus={() =>
-                    onLogEvent?.("edit_box_opened", { caseId: casePayload.id })
-                  }
-                  onChange={(e) => setEditorText(e.target.value)}
+                  onFocus={() => {
+                    editBoxOpenedCountRef.current += 1;
+                    onLogEvent?.("edit_box_opened", {
+                      caseId: casePayload.id,
+                    });
+                  }}
+                  onChange={(e) => {
+                    editKeystrokesRef.current += 1;
+                    setEditorText(e.target.value);
+                  }}
                 />
               </div>
             )}
@@ -234,11 +372,15 @@ export function CasePage({
           <h3 className="text-lg font-semibold">Three quick questions</h3>
           {quickSurvey.items.map((it) => (
             <div key={it.id}>
-              <p className="mb-2 text-sm font-medium text-slate-800">{it.text}</p>
+              <p className="mb-2 text-sm font-medium text-slate-800">
+                {it.text}
+              </p>
               <Likert
                 scale={quickSurvey.scale}
                 value={surveyAnswers[it.id]}
-                onChange={(v) => setSurveyAnswers({ ...surveyAnswers, [it.id]: v })}
+                onChange={(v) =>
+                  setSurveyAnswers({ ...surveyAnswers, [it.id]: v })
+                }
               />
             </div>
           ))}
@@ -262,16 +404,21 @@ function Section({
   eventKey,
   children,
   onLogEvent,
+  onTrack,
 }: {
   title: string;
   eventKey: string;
   children: React.ReactNode;
   onLogEvent?: (t: string, p?: Record<string, unknown>) => void;
+  onTrack?: (panel: string) => void;
 }) {
   return (
     <section
       className="card p-5"
-      onClick={() => onLogEvent?.("panel_clicked", { panel: eventKey })}
+      onClick={() => {
+        onTrack?.(eventKey);
+        onLogEvent?.("panel_clicked", { panel: eventKey });
+      }}
     >
       <h3 className="mb-2 text-sm font-semibold uppercase tracking-wide text-slate-500">
         {title}
@@ -281,12 +428,21 @@ function Section({
   );
 }
 
-function ChartSnapshotView({ snapshot }: { snapshot: Record<string, unknown> }) {
-  const entries = Object.entries(snapshot).filter(([, v]) => v !== undefined && v !== null && v !== "");
+function ChartSnapshotView({
+  snapshot,
+}: {
+  snapshot: Record<string, unknown>;
+}) {
+  const entries = Object.entries(snapshot).filter(
+    ([, v]) => v !== undefined && v !== null && v !== "",
+  );
   return (
     <dl className="grid grid-cols-1 gap-2 text-sm sm:grid-cols-2">
       {entries.map(([k, v]) => (
-        <div key={k} className="rounded border border-slate-200 bg-slate-50 px-3 py-2">
+        <div
+          key={k}
+          className="rounded border border-slate-200 bg-slate-50 px-3 py-2"
+        >
           <dt className="text-xs font-semibold uppercase tracking-wide text-slate-500">
             {humanizeKey(k)}
           </dt>
@@ -305,10 +461,14 @@ function GuardrailPanel({
   guardrail,
   caseId,
   onLogEvent,
+  onPanelClick,
+  onChecklistToggle,
 }: {
   guardrail: NonNullable<CasePayload["guardrail"]>;
   caseId: string;
   onLogEvent?: (t: string, p?: Record<string, unknown>) => void;
+  onPanelClick: (panel: string) => void;
+  onChecklistToggle: (idx: number, checked: boolean) => void;
 }) {
   const [checked, setChecked] = useState<boolean[]>(
     guardrail.checklist.map(() => false),
@@ -322,7 +482,10 @@ function GuardrailPanel({
 
       <div
         className="mb-3"
-        onClick={() => onLogEvent?.("panel_clicked", { panel: "facts_panel", caseId })}
+        onClick={() => {
+          onPanelClick("facts_panel");
+          onLogEvent?.("panel_clicked", { panel: "facts_panel", caseId });
+        }}
       >
         <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
           Facts used by AI
@@ -336,7 +499,10 @@ function GuardrailPanel({
 
       <div
         className="mb-3"
-        onClick={() => onLogEvent?.("panel_clicked", { panel: "risk_panel", caseId })}
+        onClick={() => {
+          onPanelClick("risk_panel");
+          onLogEvent?.("panel_clicked", { panel: "risk_panel", caseId });
+        }}
       >
         <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
           Risk cue
@@ -344,7 +510,12 @@ function GuardrailPanel({
         <p className="mt-1 text-sm text-slate-800">{guardrail.riskCue}</p>
       </div>
 
-      <div onClick={() => onLogEvent?.("panel_clicked", { panel: "checklist_panel", caseId })}>
+      <div
+        onClick={() => {
+          onPanelClick("checklist_panel");
+          onLogEvent?.("panel_clicked", { panel: "checklist_panel", caseId });
+        }}
+      >
         <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
           Verification checklist
         </p>
@@ -360,6 +531,7 @@ function GuardrailPanel({
                     const next = [...checked];
                     next[i] = e.target.checked;
                     setChecked(next);
+                    onChecklistToggle(i, e.target.checked);
                     onLogEvent?.("checklist_item_toggled", {
                       caseId,
                       index: i,

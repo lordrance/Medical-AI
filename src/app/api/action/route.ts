@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
+import { levenshtein } from "@/lib/edit-distance";
 
 const ActionEnum = z.enum([
   "send_as_is",
@@ -8,6 +9,18 @@ const ActionEnum = z.enum([
   "discard_and_rewrite",
   "escalate",
 ]);
+
+const ClientStatsSchema = z.object({
+  timeToFirstClickMs: z.number().nullable(),
+  panelClickCounts: z.record(z.string(), z.number()),
+  checklistChecked: z.array(z.boolean()),
+  checklistToggleCount: z.number().int(),
+  editKeystrokes: z.number().int(),
+  editBoxOpenedCount: z.number().int(),
+  pageBlurCount: z.number().int(),
+  pageFocusCount: z.number().int(),
+  visibilityHiddenMs: z.number().int(),
+});
 
 const Schema = z.object({
   sessionId: z.string(),
@@ -27,6 +40,7 @@ const Schema = z.object({
     endedAt: z.number(),
     durationMs: z.number().int().nonnegative(),
   }),
+  clientStats: ClientStatsSchema.optional(),
 });
 
 export async function POST(req: Request) {
@@ -43,6 +57,13 @@ export async function POST(req: Request) {
   if (!session) {
     return NextResponse.json({ error: "Unknown session" }, { status: 404 });
   }
+
+  const caseRow = await prisma.case.findUnique({ where: { id: data.caseId } });
+  if (!caseRow) {
+    return NextResponse.json({ error: "Unknown case" }, { status: 404 });
+  }
+
+  const editDistance = levenshtein(caseRow.aiDraft, data.finalReplyText);
 
   const presentation = await prisma.casePresentation.create({
     data: {
@@ -66,6 +87,10 @@ export async function POST(req: Request) {
       escalateSubtype: data.escalateSubtype ?? null,
       finalReplyText: data.finalReplyText,
       finalReplyCharCount: data.finalReplyText.length,
+      editDistance,
+      clientStatsJson: data.clientStats
+        ? JSON.stringify(data.clientStats)
+        : null,
     },
   });
 
@@ -78,5 +103,9 @@ export async function POST(req: Request) {
     },
   });
 
-  return NextResponse.json({ ok: true, casePresentationId: presentation.id });
+  return NextResponse.json({
+    ok: true,
+    casePresentationId: presentation.id,
+    editDistance,
+  });
 }
