@@ -1,0 +1,106 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --background: 220 33% 98%;
+    --foreground: 222 47% 11%;
+
+    --muted: 220 14% 95%;
+    --muted-foreground: 222 13% 45%;
+
+    --card: 0 0% 100%;
+    --card-foreground: 222 47% 11%;
+
+    --primary: 173 80% 26%;            /* #0F766E 深青绿 */
+    --primary-foreground: 0 0% 100%;
+
+    --accent: 38 92% 50%;              /* #F59E0B 琥珀 */
+    --accent-foreground: 30 100% 13%;
+
+    --destructive: 0 72% 51%;
+    --destructive-foreground: 0 0% 100%;
+
+    --border: 220 13% 88%;
+    --input: 220 13% 90%;
+    --ring: 173 80% 26%;
+
+    --radius: 0.625rem;
+  }
+
+  html { scroll-behavior: smooth; }
+
+  body {
+    @apply bg-background text-foreground antialiased;
+    font-feature-settings: "kern" 1;
+  }
+
+  ::selection { background: hsl(var(--primary) / 0.2); }
+}
+
+@layer components {
+  .btn {
+    @apply inline-flex items-center justify-center gap-2 rounded-md px-4 py-2 text-sm font-medium
+           transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2
+           disabled:cursor-not-allowed disabled:opacity-50 select-none;
+  }
+  .btn-primary { @apply btn bg-primary text-primary-foreground hover:bg-primary/90 active:scale-[0.98]; }
+  .btn-outline { @apply btn border border-border bg-card text-foreground hover:bg-muted; }
+  .btn-ghost   { @apply btn text-foreground hover:bg-muted; }
+
+  .card {
+    @apply rounded-lg border border-border bg-card text-card-foreground shadow-sm;
+  }
+  .card-section { @apply p-6 md:p-7; }
+
+  .label { @apply mb-1.5 block text-sm font-medium text-foreground; }
+  .input {
+    @apply w-full rounded-md border border-input bg-card px-3 py-2 text-sm shadow-sm
+           placeholder:text-muted-foreground
+           focus:outline-none focus:ring-2 focus:ring-ring;
+  }
+  .textarea { @apply input min-h-[160px] resize-y leading-relaxed; }
+
+  .progress-track {
+    @apply h-1 w-full overflow-hidden rounded-full bg-muted;
+  }
+  .progress-fill {
+    @apply h-full rounded-full bg-primary transition-[width] duration-500 ease-out;
+  }
+
+  /* 4 个动作按钮 */
+  .action-tile {
+    @apply flex items-start gap-3 rounded-lg border-2 border-border bg-card p-4 text-left
+           transition hover:border-primary/40 hover:bg-muted/50 cursor-pointer
+           focus-within:ring-2 focus-within:ring-ring;
+  }
+  .action-tile-active {
+    @apply border-primary bg-primary/5 ring-1 ring-primary;
+  }
+  .action-tile-icon {
+    @apply flex h-9 w-9 shrink-0 items-center justify-center rounded-md
+           bg-muted text-foreground/70;
+  }
+  .action-tile-active .action-tile-icon {
+    @apply bg-primary text-primary-foreground;
+  }
+
+  /* Likert 单元 */
+  .likert-cell {
+    @apply flex flex-1 cursor-pointer flex-col items-center rounded-md border border-border bg-card
+           px-2 py-2 text-xs transition hover:border-primary/40;
+  }
+  .likert-cell-active {
+    @apply border-primary bg-primary/10 text-primary font-semibold;
+  }
+
+  /* Guardrail 面板 */
+  .guardrail-panel {
+    @apply card-section card border-2 border-accent/40 bg-accent/5 space-y-4;
+  }
+}
+
+@layer utilities {
+  .stack-y > * + * { margin-top: 1rem; }
+}

@@ -1,0 +1,115 @@
+// Chinese (Simplified) UI dictionary. Keep UI text out of components.
+export const zh = {
+  app: {
+    title: "AI 草稿审核研究平台",
+    subtitle: "脚本化 HCI 实验平台 · 不提供医疗服务",
+    footer: "本系统仅用于科研目的 · v0.2",
+  },
+  home: {
+    welcome: "欢迎参与本研究",
+    intro:
+      "您将在大约 30 分钟内审核若干虚构的患者消息及对应的 AI 草稿回复，并决定如何处理。所有案例均为虚构，不涉及真实病例与病人信息。",
+    notMedical:
+      "本平台不是临床医疗服务，AI 草稿仅作为研究素材，不应作为任何真实诊疗依据。",
+    start: "开始研究",
+  },
+  consent: {
+    title: "知情同意",
+    p1: "您将审核若干虚构的患者消息以及 AI 起草的回复，并对每条作出处理决定。本研究不涉及任何真实病例信息。",
+    p2: "我们将记录您的审核选择、最终回复文本、点击事件与时长。所有数据按假名 ID 脱敏存储，仅用于学术研究。",
+    p3: "您可以随时关闭页面退出研究。完成研究后会显示一个完成码（completion code）。",
+    agree: "我已阅读上述内容，同意参与本研究",
+    cta: "我同意 — 开始",
+    starting: "正在创建研究会话…",
+    failed: "无法启动研究",
+  },
+  preSurvey: {
+    submit: "继续",
+    saving: "正在保存…",
+  },
+  practice: {
+    banner:
+      "练习案例 — 让您熟悉界面布局、四种处理动作以及案例后的三道小题。本案例不计入主分析。",
+  },
+  caseUI: {
+    progress: (i: number, n: number) => `案例 ${i} / ${n}`,
+    practice: "练习案例",
+    condition: (c: string) =>
+      c === "guardrail" ? "实验组：含护栏面板" : "对照组：仅基础信息",
+    patientMessage: "患者消息",
+    chartSnapshot: "病历摘要",
+    aiDraft: "AI 起草的回复",
+    guardrailTitle: "护栏面板（仅本组可见）",
+    factsUsed: "AI 使用的事实",
+    riskCue: "风险提示",
+    checklist: "核查清单",
+    actionsHeading: "请选择处理方式",
+    finalReplyLabel: "最终回复内容",
+    finalReplyHelpEdit: "已用 AI 草稿预填，可在此基础上修改",
+    finalReplyHelpRewrite: "请重新撰写最终回复",
+    chars: (n: number) => `${n} 字`,
+    saveAndContinue: "保存并继续",
+    saving: "保存中…",
+    pickAction: "请先选择一种处理方式",
+    fillReply: "请填写最终回复",
+    quickHeading: "请回答以下三道小题",
+    quickContinue: "继续下一案例",
+  },
+  actions: {
+    send_as_is: { label: "直接发送", hint: "不修改 AI 草稿，原样发送给患者" },
+    edit_then_send: { label: "编辑后发送", hint: "在 AI 草稿基础上做修改后再发送" },
+    discard_and_rewrite: { label: "弃用并重写", hint: "弃用 AI 草稿，自行重新撰写" },
+    escalate: { label: "升级处理", hint: "本消息不宜按普通在线问诊回复处理" },
+  },
+  escalateSubtype: {
+    label: "升级处理类型（可选）",
+    options: {
+      "": "—",
+      urgent_evaluation: "建议立即就诊",
+      call_patient: "电话回访患者",
+      ed_instruction: "建议急诊就医",
+      other: "其他升级处理",
+    },
+  },
+  scale: {
+    minLabel: "非常不同意",
+    maxLabel: "非常同意",
+  },
+  postSurvey: {
+    submit: "提交问卷",
+    saving: "提交中…",
+  },
+  completion: {
+    title: "感谢您的参与",
+    body: "您的回答已成功提交，可以关闭此页面了。如果招募方需要您回填完成码，请将下方编码原样填写。",
+    code: "完成码",
+    reset: "重置（仅调试）",
+  },
+  admin: {
+    title: "管理员后台",
+    needToken: "请在 URL 后追加 ?token=您的ADMIN_TOKEN 后访问。",
+    loading: "正在加载…",
+    completion: "完成情况",
+    completionLine: (a: number, b: number) => `已完成 ${a} / ${b}`,
+    confusion: "混淆矩阵",
+    confusionHint: "行 = 标准答案（gold action）；列 = 医生选择（selected action）",
+    accuracy: "整体准确率",
+    perCase: "按案例统计",
+    perParticipant: "按参与者统计",
+    download: "下载数据",
+    csv: "CSV",
+    json: "JSON",
+    llmHeading: "AI 自然语言总结",
+    llmDisabledHint:
+      "当前 LLM 未启用。请在后端 .env 设置 LLM_PROVIDER=deepseek 并配置 DEEPSEEK_API_KEY 后重启。",
+    llmGenerateCohort: "生成本次实验中文总结",
+    llmGenerating: "正在调用 LLM…",
+    llmError: "调用失败",
+  },
+  errors: {
+    network: "网络异常，请稍后重试",
+    unknown: "出现未知错误",
+  },
+} as const;
+
+export type I18nDict = typeof zh;
