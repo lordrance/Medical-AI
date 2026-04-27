@@ -17,7 +17,7 @@
 | 5 | 日志系统加固（edit_distance, client stats, page_blur 等） | ✅ |
 | 6 | 4 套顺序模板随机化 | ✅（随脚手架一起完成） |
 | 7 | 管理员导出（CSV/JSON）+ 混淆矩阵 + 打分量表 | ✅ |
-| 8 | Pilot QA | ⏳ 下一步 |
+| 8 | Pilot QA + sanity check + PI SOP | ✅ |
 
 > Phase 3/4/6 在 Phase 2 的最小流程中已经完整接通，但还会在后续 Phase 单独加强（例如 edit_distance 后算、checklist 展开次数、混淆矩阵导出等）。
 
@@ -164,11 +164,17 @@ API 鉴权：`?token=...` 或 `X-Admin-Token` header。无 token 返回 401。
 ## End-to-end smoke test
 
 ```bash
-ADMIN_TOKEN=$(grep ADMIN_TOKEN .env | cut -d= -f2 | tr -d '"') node scripts/e2e-smoke.mjs
+pnpm smoke              # 模拟 3 个参与者跑完整流程，打印混淆矩阵
+pnpm sanity-check       # 扫描数据库输出健康报告（完成率、时长分布、数据完整性、accuracy）
 ```
 
-模拟 3 个参与者（2 个 perfect + 1 个 lazy），跑完整流程，打印混淆矩阵。
+## PI 操作 SOP
 
-## 后续 Phase 计划
+完整的实验流程指南、招募话术、数据导出与分析建议，请见 [`docs/PI_SOP.md`](docs/PI_SOP.md)。包括：
 
-- **Phase 8**：邀请 2–3 个内部测试者跑通整个流程，验证 ≤35 分钟可完成、所有日志都能正确导出。
+- 0：实验前准备 + pilot
+- 1：招募 & 邀请话术
+- 2：实验进行中的监控（`pnpm sanity-check`）
+- 3：怎么收数据（一次导出 8 张表 × CSV/JSON 的 bash 脚本）
+- 4：分析建议（混合效应模型 R 代码 + Paper 1/Paper 2 outcome 对应字段）
+- 5：数据归档与常见问题

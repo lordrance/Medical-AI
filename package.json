@@ -9,6 +9,8 @@
     "start": "next start",
     "lint": "next lint",
     "validate-data": "node scripts/validate-data.mjs",
+    "sanity-check": "node scripts/sanity-check.mjs",
+    "smoke": "node scripts/e2e-smoke.mjs",
     "db:generate": "prisma generate",
     "db:push": "prisma db push",
     "db:seed": "tsx prisma/seed.ts",
