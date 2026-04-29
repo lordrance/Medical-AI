@@ -8,6 +8,7 @@ import type { ActionResponse, CaseResponse, CasePayload } from "@/lib/api/types"
 import { logEvent } from "@/lib/logger";
 import { useStudy } from "@/lib/store";
 import { zh } from "@/lib/i18n/zh-CN";
+import { PageBack } from "@/components/PageBack";
 
 export default function PracticePage() {
   const router = useRouter();
@@ -34,7 +35,9 @@ export default function PracticePage() {
     return <div className="card card-section text-muted-foreground">{zh.admin.loading}</div>;
 
   return (
-    <CasePage
+    <>
+      <PageBack />
+      <CasePage
       casePayload={casePayload}
       condition={session.condition}
       progressCurrent={0}
@@ -57,5 +60,6 @@ export default function PracticePage() {
         router.push("/case/0");
       }}
     />
+    </>
   );
 }

@@ -3,7 +3,7 @@ from __future__ import annotations
 from datetime import datetime, timezone
 
 from fastapi import APIRouter, Depends, HTTPException
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import db_session
@@ -21,9 +21,9 @@ class TimingIn(BaseModel):
 
 
 class QuickSurveyIn(BaseModel):
-    item1: int = Field(ge=1, le=7)
-    item2: int = Field(ge=1, le=7)
-    item3: int = Field(ge=1, le=7)
+    item1: int = Field(ge=1, le=5)
+    item2: int = Field(ge=1, le=5)
+    item3: int = Field(ge=1, le=5)
 
 
 class ClientStatsIn(BaseModel):
@@ -46,9 +46,17 @@ class ActionIn(BaseModel):
     selectedAction: SelectedAction
     finalReplyText: str
     escalateSubtype: EscalateSubtype | None = None
+    escalateReason: str | None = None
     quickSurvey: QuickSurveyIn
     timing: TimingIn
     clientStats: ClientStatsIn | None = None
+
+    @model_validator(mode="after")
+    def _escalate_requires_reason(self) -> ActionIn:
+        if self.selectedAction == SelectedAction.escalate:
+            if not (self.escalateReason or "").strip():
+                raise ValueError("escalateReason is required when escalating")
+        return self
 
 
 class ActionResponse(BaseModel):
@@ -96,6 +104,12 @@ async def submit_action(
             escalate_flag=sa == SelectedAction.escalate,
             escalate_subtype=(
                 body.escalateSubtype.value if body.escalateSubtype else None
+            ),
+            escalate_reason=(
+                body.escalateReason.strip()
+                if body.selectedAction == SelectedAction.escalate
+                and body.escalateReason
+                else None
             ),
             final_reply_text=body.finalReplyText,
             final_reply_char_count=len(body.finalReplyText),

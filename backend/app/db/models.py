@@ -172,6 +172,7 @@ class Action(Base):
     discard_flag: Mapped[bool] = mapped_column(Boolean, default=False)
     escalate_flag: Mapped[bool] = mapped_column(Boolean, default=False)
     escalate_subtype: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    escalate_reason: Mapped[str | None] = mapped_column(Text, nullable=True)
 
     final_reply_text: Mapped[str] = mapped_column(Text, nullable=False, default="")
     final_reply_char_count: Mapped[int] = mapped_column(Integer, default=0)

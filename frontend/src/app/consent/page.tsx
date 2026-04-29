@@ -7,6 +7,7 @@ import { api, ApiError } from "@/lib/api/client";
 import type { SessionInfo } from "@/lib/api/types";
 import { zh } from "@/lib/i18n/zh-CN";
 import { useStudy } from "@/lib/store";
+import { PageBack } from "@/components/PageBack";
 
 export default function ConsentPage() {
   const router = useRouter();
@@ -37,11 +38,18 @@ export default function ConsentPage() {
 
   return (
     <div className="card card-section animate-slide-up">
+      <PageBack />
       <h2 className="text-xl font-semibold">{zh.consent.title}</h2>
       <div className="mt-5 space-y-3 text-sm leading-7 text-foreground/85">
         <p>{zh.consent.p1}</p>
         <p>{zh.consent.p2}</p>
         <p>{zh.consent.p3}</p>
+        <p className="font-medium text-foreground">{zh.consent.checklistIntro}</p>
+        <ul className="list-disc space-y-1.5 pl-5">
+          {zh.consent.checklistBullets.map((t) => (
+            <li key={t}>{t}</li>
+          ))}
+        </ul>
       </div>
 
       <label className="mt-7 flex cursor-pointer items-start gap-2 text-sm">

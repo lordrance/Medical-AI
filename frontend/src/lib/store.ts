@@ -2,7 +2,7 @@
 
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
-import type { SessionInfo } from "@/lib/api/types";
+import type { SessionInfo, SessionPerformance } from "@/lib/api/types";
 
 export type Step =
   | "consent"
@@ -17,10 +17,12 @@ interface StudyState {
   step: Step;
   caseIndex: number;
   completionCode: string | null;
+  performance: SessionPerformance | null;
   setSession: (s: SessionInfo) => void;
   setStep: (s: Step) => void;
   setCaseIndex: (i: number) => void;
   setCompletionCode: (c: string) => void;
+  setPerformance: (p: SessionPerformance | null) => void;
   reset: () => void;
 }
 
@@ -31,16 +33,19 @@ export const useStudy = create<StudyState>()(
       step: "consent",
       caseIndex: 0,
       completionCode: null,
+      performance: null,
       setSession: (session) => set({ session }),
       setStep: (step) => set({ step }),
       setCaseIndex: (caseIndex) => set({ caseIndex }),
       setCompletionCode: (code) => set({ completionCode: code }),
+      setPerformance: (performance) => set({ performance }),
       reset: () =>
         set({
           session: null,
           step: "consent",
           caseIndex: 0,
           completionCode: null,
+          performance: null,
         }),
     }),
     { name: "medai-study-v2" },

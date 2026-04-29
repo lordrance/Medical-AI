@@ -1,5 +1,8 @@
 // Chinese (Simplified) UI dictionary. Keep UI text out of components.
 export const zh = {
+  nav: {
+    back: "返回",
+  },
   app: {
     title: "AI 草稿审核研究平台",
     subtitle: "脚本化 HCI 实验平台 · 不提供医疗服务",
@@ -18,6 +21,13 @@ export const zh = {
     p1: "您将审核若干虚构的患者消息以及 AI 起草的回复，并对每条作出处理决定。本研究不涉及任何真实病例信息。",
     p2: "我们将记录您的审核选择、最终回复文本、点击事件与时长。所有数据按假名 ID 脱敏存储，仅用于学术研究。",
     p3: "您可以随时关闭页面退出研究。完成研究后会显示一个完成码（completion code）。",
+    checklistIntro:
+      "在审核每条 AI 草稿时，请您自行留意以下核查角度（正式案例中不再逐条列出清单）：",
+    checklistBullets: [
+      "所选处理方式与患者风险程度是否匹配（含是否需升级或线下评估）。",
+      "回复是否避免无依据的安抚，并包含必要的安全网与红旗症状提示。",
+      "药物与过敏史、病历摘要是否一致，是否存在与记录矛盾或证据不足之处。",
+    ],
     agree: "我已阅读上述内容，同意参与本研究",
     cta: "我同意 — 开始",
     starting: "正在创建研究会话…",
@@ -41,7 +51,7 @@ export const zh = {
     aiDraft: "AI 起草的回复",
     guardrailTitle: "护栏面板（仅本组可见）",
     factsUsed: "AI 使用的事实",
-    riskCue: "风险提示",
+    riskCue: "AI 风险提示",
     checklist: "核查清单",
     actionsHeading: "请选择处理方式",
     finalReplyLabel: "最终回复内容",
@@ -62,7 +72,7 @@ export const zh = {
     escalate: { label: "升级处理", hint: "本消息不宜按普通在线问诊回复处理" },
   },
   escalateSubtype: {
-    label: "升级处理类型（可选）",
+    label: "升级处理类型",
     options: {
       "": "—",
       urgent_evaluation: "建议立即就诊",
@@ -70,6 +80,11 @@ export const zh = {
       ed_instruction: "建议急诊就医",
       other: "其他升级处理",
     },
+  },
+  escalateReason: {
+    label: "请说明升级处理的原因",
+    placeholder: "例如：存在气道风险需紧急评估、与过敏史冲突、需电话澄清等",
+    required: "请填写升级原因后再提交",
   },
   scale: {
     minLabel: "非常不同意",
@@ -83,6 +98,11 @@ export const zh = {
     title: "感谢您的参与",
     body: "您的回答已成功提交，可以关闭此页面了。如果招募方需要您回填完成码，请将下方编码原样填写。",
     code: "完成码",
+    performanceTitle: "本次审核表现小结",
+    performanceLine: (correct: number, total: number, pct: string) =>
+      `正式案例共 ${total} 题，答对 ${correct} 题，准确率 ${pct}。`,
+    performanceHint:
+      "「答对」指所选处理方式与研究团队预设的参考标准一致；练习案例不计入。",
     reset: "重置（仅调试）",
   },
   admin: {

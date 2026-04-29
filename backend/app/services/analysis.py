@@ -24,6 +24,39 @@ ALL_ACTIONS: list[str] = [
 ]
 
 
+def _action_matches_gold(case: Case, selected: str) -> bool:
+    alts = case.gold_action_alternates or []
+    return selected == case.gold_action or selected in alts
+
+
+async def session_formal_performance(
+    db: AsyncSession, session_id: str
+) -> dict[str, Any]:
+    """Count formal-case correct vs gold or alternates (same rule as admin export)."""
+    stmt = (
+        select(CasePresentation)
+        .join(Action, Action.case_presentation_id == CasePresentation.id)
+        .where(CasePresentation.session_id == session_id)
+        .options(
+            selectinload(CasePresentation.case),
+            selectinload(CasePresentation.action),
+        )
+    )
+    rows = (await db.execute(stmt)).scalars().all()
+    formal = [r for r in rows if r.case is not None and not r.case.is_practice]
+    correct = 0
+    for p in formal:
+        assert p.case is not None and p.action is not None
+        if _action_matches_gold(p.case, p.action.selected_action):
+            correct += 1
+    total = len(formal)
+    return {
+        "correct": correct,
+        "total": total,
+        "accuracy": (correct / total) if total else 0.0,
+    }
+
+
 async def completion_stats(db: AsyncSession) -> dict[str, Any]:
     total = (await db.execute(select(func.count(Participant.id)))).scalar() or 0
     completed = (

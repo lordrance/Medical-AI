@@ -7,8 +7,6 @@ import {
   RefreshCcw,
   Send,
   Loader2,
-  CheckCircle2,
-  ListChecks,
   AlertOctagon,
   FileText,
 } from "lucide-react";
@@ -55,6 +53,7 @@ export interface CasePageProps {
     selectedAction: SelectedAction;
     finalReplyText: string;
     escalateSubtype?: string;
+    escalateReason?: string;
     quickSurvey: QuickSurvey;
     timing: { startedAt: number; endedAt: number; durationMs: number };
     clientStats: ClientStats;
@@ -78,7 +77,7 @@ export function CasePage(props: CasePageProps) {
   const editKeystrokesRef = useRef(0);
   const editBoxOpenedRef = useRef(0);
   const checklistRef = useRef<boolean[]>([]);
-  const checklistToggleRef = useRef(0);
+  const checklistToggleRef = useRef(0); // checklist UI removed; kept for API shape
   const blurRef = useRef(0);
   const focusRef = useRef(0);
   const hiddenStartRef = useRef<number | null>(null);
@@ -87,6 +86,7 @@ export function CasePage(props: CasePageProps) {
   const [selected, setSelected] = useState<SelectedAction | null>(null);
   const [editorText, setEditorText] = useState("");
   const [escalateSubtype, setEscalateSubtype] = useState("");
+  const [escalateReason, setEscalateReason] = useState("");
   const [showQuick, setShowQuick] = useState(false);
   const [quick, setQuick] = useState<Record<string, number>>({});
   const [submitting, setSubmitting] = useState(false);
@@ -99,9 +99,7 @@ export function CasePage(props: CasePageProps) {
     panelClicksRef.current = {};
     editKeystrokesRef.current = 0;
     editBoxOpenedRef.current = 0;
-    checklistRef.current = casePayload.guardrail
-      ? casePayload.guardrail.checklist.map(() => false)
-      : [];
+    checklistRef.current = [];
     checklistToggleRef.current = 0;
     blurRef.current = 0;
     focusRef.current = 0;
@@ -110,6 +108,7 @@ export function CasePage(props: CasePageProps) {
     setSelected(null);
     setEditorText("");
     setEscalateSubtype("");
+    setEscalateReason("");
     setShowQuick(false);
     setQuick({});
     setValidationMsg(null);
@@ -152,7 +151,10 @@ export function CasePage(props: CasePageProps) {
     if (a === "edit_then_send") setEditorText(casePayload.aiDraft);
     else if (a === "discard_and_rewrite") setEditorText("");
     else if (a === "send_as_is") setEditorText(casePayload.aiDraft);
-    else if (a === "escalate") setEditorText("");
+    else if (a === "escalate") {
+      setEditorText("");
+      setEscalateReason("");
+    }
   }
 
   const editorVisible =
@@ -161,8 +163,9 @@ export function CasePage(props: CasePageProps) {
   const canContinue = useMemo(() => {
     if (!selected) return false;
     if (editorVisible && editorText.trim().length === 0) return false;
+    if (selected === "escalate" && escalateReason.trim().length === 0) return false;
     return true;
-  }, [selected, editorVisible, editorText]);
+  }, [selected, editorVisible, editorText, escalateReason]);
 
   function tryContinue() {
     if (!selected) {
@@ -171,6 +174,10 @@ export function CasePage(props: CasePageProps) {
     }
     if (editorVisible && editorText.trim().length === 0) {
       setValidationMsg(zh.caseUI.fillReply);
+      return;
+    }
+    if (selected === "escalate" && escalateReason.trim().length === 0) {
+      setValidationMsg(zh.escalateReason.required);
       return;
     }
     onLogEvent?.("save_continue_clicked", { caseId: casePayload.id });
@@ -210,6 +217,8 @@ export function CasePage(props: CasePageProps) {
         finalReplyText,
         escalateSubtype:
           selected === "escalate" ? escalateSubtype || undefined : undefined,
+        escalateReason:
+          selected === "escalate" ? escalateReason.trim() : undefined,
         quickSurvey: {
           item1: quick["safe_to_send"],
           item2: quick["confidence_in_judgment"],
@@ -292,11 +301,6 @@ export function CasePage(props: CasePageProps) {
                 recordFirstClick();
                 bumpPanel(p);
               }}
-              onChecklistToggle={(idx, checked) => {
-                recordFirstClick();
-                checklistRef.current[idx] = checked;
-                checklistToggleRef.current += 1;
-              }}
               onLogEvent={onLogEvent}
             />
           )}
@@ -337,24 +341,42 @@ export function CasePage(props: CasePageProps) {
             </div>
 
             {selected === "escalate" && (
-              <div className="mt-4">
-                <label className="label">{zh.escalateSubtype.label}</label>
-                <select
-                  className="input"
-                  value={escalateSubtype}
-                  onChange={(e) => setEscalateSubtype(e.target.value)}
-                >
-                  {(
-                    Object.entries(zh.escalateSubtype.options) as [
-                      keyof typeof zh.escalateSubtype.options,
-                      string,
-                    ][]
-                  ).map(([k, label]) => (
-                    <option key={k} value={k}>
-                      {label}
-                    </option>
-                  ))}
-                </select>
+              <div className="mt-4 space-y-4">
+                <div>
+                  <label className="label">{zh.escalateSubtype.label}</label>
+                  <select
+                    className="input"
+                    value={escalateSubtype}
+                    onChange={(e) => setEscalateSubtype(e.target.value)}
+                  >
+                    {(
+                      Object.entries(zh.escalateSubtype.options) as [
+                        keyof typeof zh.escalateSubtype.options,
+                        string,
+                      ][]
+                    ).map(([k, label]) => (
+                      <option key={k} value={k}>
+                        {label}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className="label">{zh.escalateReason.label}</label>
+                  <textarea
+                    className="textarea min-h-[100px]"
+                    placeholder={zh.escalateReason.placeholder}
+                    value={escalateReason}
+                    onFocus={() => {
+                      editBoxOpenedRef.current += 1;
+                      onLogEvent?.("edit_box_opened", { caseId: casePayload.id });
+                    }}
+                    onChange={(e) => {
+                      editKeystrokesRef.current += 1;
+                      setEscalateReason(e.target.value);
+                    }}
+                  />
+                </div>
               </div>
             )}
 
@@ -413,7 +435,7 @@ export function CasePage(props: CasePageProps) {
                 <Likert
                   scale={{
                     min: 1,
-                    max: 7,
+                    max: 5,
                     minLabel: zh.scale.minLabel,
                     maxLabel: zh.scale.maxLabel,
                   }}
@@ -486,19 +508,13 @@ function GuardrailPanel({
   guardrail,
   caseId,
   onPanelClick,
-  onChecklistToggle,
   onLogEvent,
 }: {
   guardrail: NonNullable<CasePayload["guardrail"]>;
   caseId: string;
   onPanelClick: (panel: string) => void;
-  onChecklistToggle: (idx: number, checked: boolean) => void;
   onLogEvent?: (t: string, p?: Record<string, unknown>) => void;
 }) {
-  const [checked, setChecked] = useState<boolean[]>(
-    guardrail.checklist.map(() => false),
-  );
-
   return (
     <section className="guardrail-panel">
       <h3 className="flex items-center gap-2 text-sm font-semibold uppercase tracking-wide text-accent-foreground">
@@ -534,48 +550,6 @@ function GuardrailPanel({
           {zh.caseUI.riskCue}
         </p>
         <p className="rounded-md bg-card/80 px-3 py-2 text-sm">{guardrail.riskCue}</p>
-      </div>
-
-      <div
-        onClick={() => {
-          onPanelClick("checklist_panel");
-          onLogEvent?.("panel_clicked", { panel: "checklist_panel", caseId });
-        }}
-      >
-        <p className="mb-1.5 flex items-center gap-1 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-          <ListChecks className="h-3.5 w-3.5" />
-          {zh.caseUI.checklist}
-        </p>
-        <ul className="space-y-1.5 text-sm">
-          {guardrail.checklist.map((c, i) => (
-            <li key={i}>
-              <label className="flex cursor-pointer items-start gap-2">
-                <input
-                  type="checkbox"
-                  className="mt-0.5 h-4 w-4 rounded border-border accent-[hsl(var(--primary))]"
-                  checked={checked[i]}
-                  onChange={(e) => {
-                    const next = [...checked];
-                    next[i] = e.target.checked;
-                    setChecked(next);
-                    onChecklistToggle(i, e.target.checked);
-                    onLogEvent?.("checklist_item_toggled", {
-                      caseId,
-                      index: i,
-                      checked: e.target.checked,
-                    });
-                  }}
-                />
-                <span className="flex items-start gap-1">
-                  {checked[i] && (
-                    <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-primary" />
-                  )}
-                  <span>{c}</span>
-                </span>
-              </label>
-            </li>
-          ))}
-        </ul>
       </div>
     </section>
   );

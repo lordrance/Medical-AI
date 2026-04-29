@@ -19,7 +19,7 @@ export const postSurveyConfig: PostSurveyConfig = {
   title: "后测问卷",
   description:
     "感谢您完成案例审核。请回答以下关于您对 AI 起草工具整体看法的问题，约 6—8 分钟。",
-  scale: { min: 1, max: 7, minLabel: "非常不同意", maxLabel: "非常同意" },
+  scale: { min: 1, max: 5, minLabel: "非常不同意", maxLabel: "非常同意" },
   blocks: [
     {
       id: "trust",

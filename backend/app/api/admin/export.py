@@ -162,6 +162,7 @@ async def _load_table(table: str, db: AsyncSession) -> Any:
                     "discardFlag": r.discard_flag,
                     "escalateFlag": r.escalate_flag,
                     "escalateSubtype": r.escalate_subtype,
+                    "escalateReason": r.escalate_reason,
                     "finalReplyText": r.final_reply_text,
                     "finalReplyCharCount": r.final_reply_char_count,
                     "editDistance": r.edit_distance,

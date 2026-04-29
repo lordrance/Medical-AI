@@ -9,6 +9,7 @@ import type { PostSurveyResponse } from "@/lib/api/types";
 import { postSurveyConfig } from "@/lib/forms/postSurveyConfig";
 import { zh } from "@/lib/i18n/zh-CN";
 import { useStudy } from "@/lib/store";
+import { PageBack } from "@/components/PageBack";
 
 type Answer = number | string;
 
@@ -17,6 +18,7 @@ export default function PostSurveyPage() {
   const session = useStudy((s) => s.session);
   const setStep = useStudy((s) => s.setStep);
   const setCompletionCode = useStudy((s) => s.setCompletionCode);
+  const setPerformance = useStudy((s) => s.setPerformance);
   const [answers, setAnswers] = useState<Record<string, Answer>>({});
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -43,6 +45,7 @@ export default function PostSurveyPage() {
         body: { sessionId: session.sessionId, payload: answers },
       });
       setCompletionCode(r.completionCode);
+      setPerformance(r.performance ?? null);
       setStep("completion");
       router.push("/completion");
     } catch {
@@ -54,6 +57,7 @@ export default function PostSurveyPage() {
 
   return (
     <div className="card card-section animate-slide-up">
+      <PageBack />
       <h2 className="text-xl font-semibold">{postSurveyConfig.title}</h2>
       <p className="mt-1 text-sm text-muted-foreground">
         {postSurveyConfig.description}

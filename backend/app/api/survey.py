@@ -7,6 +7,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.api.deps import db_session
 from app.db.base import utcnow
 from app.db.models import Participant, PostSurvey, Session, UiEvent
+from app.services.analysis import session_formal_performance
 
 router = APIRouter(tags=["survey"])
 
@@ -90,5 +91,10 @@ async def submit_post_survey(
         participant.completed_at = now
 
     completion_code = f"AIDR-{session.participant_id[-8:].upper()}"
+    performance = await session_formal_performance(db, session.id)
     await db.commit()
-    return {"ok": True, "completionCode": completion_code}
+    return {
+        "ok": True,
+        "completionCode": completion_code,
+        "performance": performance,
+    }

@@ -119,7 +119,7 @@ export const preSurveyConfig: SurveyConfig = {
       type: "likert",
       required: true,
       label: "您对生成式 AI 起草工具的工作原理熟悉程度如何？",
-      scale: { min: 1, max: 7, minLabel: "完全不熟悉", maxLabel: "非常熟悉" },
+      scale: { min: 1, max: 5, minLabel: "完全不熟悉", maxLabel: "非常熟悉" },
     },
   ],
 };

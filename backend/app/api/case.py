@@ -15,6 +15,30 @@ from app.schemas.case import CasePayload, CaseResponse, GuardrailContent
 router = APIRouter(prefix="/api/case", tags=["case"])
 
 
+async def _generate_ai_risk_tip(case: Case) -> str:
+    """LLM-generated AI risk tip; fallback to seeded risk_cue."""
+    provider = get_provider()
+    system, user_tpl = load_prompt("risk_tip")
+    user = render_template(
+        user_tpl,
+        {
+            "patientMessage": case.patient_message,
+            "chartSnapshotJson": json.dumps(
+                case.chart_snapshot, ensure_ascii=False, indent=2
+            ),
+            "factsUsedJson": json.dumps(case.facts_used, ensure_ascii=False),
+        },
+    )
+    try:
+        resp = await provider.generate(system=system, user=user, max_tokens=256)
+        text = (resp.text or "").strip()
+        if text:
+            return text
+    except LLMUnavailable:
+        pass
+    return case.risk_cue
+
+
 async def _generate_case_draft(case: Case) -> str:
     """Generate patient-facing draft from current case context via configured LLM."""
     provider = get_provider()
@@ -53,6 +77,9 @@ async def get_case(
 
     is_guardrail = participant.condition == "guardrail"
     ai_draft = await _generate_case_draft(case)
+    risk_for_guardrail = (
+        await _generate_ai_risk_tip(case) if is_guardrail else case.risk_cue
+    )
 
     return CaseResponse(
         case=CasePayload(
@@ -65,8 +92,8 @@ async def get_case(
             guardrail=(
                 GuardrailContent(
                     factsUsed=case.facts_used,
-                    riskCue=case.risk_cue,
-                    checklist=case.checklist,
+                    riskCue=risk_for_guardrail,
+                    checklist=[],
                 )
                 if is_guardrail
                 else None

@@ -112,7 +112,7 @@
       "required": true,
       "scale": {
         "min": 1,
-        "max": 7,
+        "max": 5,
         "minLabel": "完全不熟悉",
         "maxLabel": "非常熟悉"
       }

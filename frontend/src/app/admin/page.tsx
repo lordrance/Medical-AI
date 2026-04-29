@@ -9,6 +9,7 @@ import type {
   SummaryResponse,
 } from "@/lib/api/types";
 import { zh } from "@/lib/i18n/zh-CN";
+import { PageBack } from "@/components/PageBack";
 
 const TABLES = [
   { id: "participants", label: "参与者" },
@@ -60,6 +61,7 @@ function AdminInner() {
 
   return (
     <div className="space-y-5">
+      <PageBack />
       <div className="card card-section">
         <h2 className="text-lg font-semibold">{zh.admin.title}</h2>
       </div>

@@ -8,6 +8,7 @@ import type { ActionResponse, CaseResponse, CasePayload } from "@/lib/api/types"
 import { logEvent } from "@/lib/logger";
 import { useStudy } from "@/lib/store";
 import { zh } from "@/lib/i18n/zh-CN";
+import { PageBack } from "@/components/PageBack";
 
 export default function FormalCasePage() {
   const router = useRouter();
@@ -50,7 +51,9 @@ export default function FormalCasePage() {
   const total = session.caseOrder.length;
 
   return (
-    <CasePage
+    <>
+      <PageBack />
+      <CasePage
       casePayload={casePayload}
       condition={session.condition}
       progressCurrent={orderIndex + 1}
@@ -77,5 +80,6 @@ export default function FormalCasePage() {
         }
       }}
     />
+    </>
   );
 }

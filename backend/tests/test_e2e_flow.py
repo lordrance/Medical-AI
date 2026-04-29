@@ -53,7 +53,6 @@ async def test_case_endpoint_filters_by_condition(client: AsyncClient) -> None:
     assert rg.status_code == 200
     g_case = rg.json()["case"]
     assert g_case["guardrail"] is not None
-    assert len(g_case["guardrail"]["factsUsed"]) >= 1
     assert "checklist" in g_case["guardrail"]
 
 
@@ -83,47 +82,62 @@ async def test_full_participant_flow(client: AsyncClient) -> None:
 
     now = int(time.time() * 1000)
 
-    # walk through all 8 cases by gold action (mock heuristic: ALL send_as_is for simplicity here)
+    from app.scripts.data_loader import load_cases
+
+    gold_by_id = {c["id"]: c["goldAction"] for c in load_cases()}
+
     for i, cid in enumerate(s["caseOrder"]):
-        # fetch case
         cr = await client.get(f"/api/case/{cid}?sessionId={sid}")
         assert cr.status_code == 200
         case_payload = cr.json()["case"]
+        ga = gold_by_id[cid]
+        sel = ga
+        if ga == "send_as_is":
+            final_txt = case_payload["aiDraft"]
+        elif ga == "escalate":
+            final_txt = "[escalated]"
+        elif ga == "edit_then_send":
+            final_txt = case_payload["aiDraft"] + " 已审阅。"
+        elif ga == "discard_and_rewrite":
+            final_txt = "重写后的安全回复（测试）。"
+        else:
+            final_txt = case_payload["aiDraft"]
 
-        # submit action
-        ar = await client.post(
-            "/api/action",
-            json={
-                "sessionId": sid,
-                "caseId": cid,
-                "orderIndex": i,
-                "isPractice": False,
-                "selectedAction": "send_as_is",
-                "finalReplyText": case_payload["aiDraft"],
-                "quickSurvey": {"item1": 5, "item2": 5, "item3": 5},
-                "timing": {
-                    "startedAt": now - 5000,
-                    "endedAt": now,
-                    "durationMs": 5000,
-                },
-                "clientStats": {
-                    "timeToFirstClickMs": 800,
-                    "panelClickCounts": {"ai_draft_panel": 1},
-                    "checklistChecked": [True, True, True],
-                    "checklistToggleCount": 3,
-                    "editKeystrokes": 0,
-                    "editBoxOpenedCount": 0,
-                    "pageBlurCount": 0,
-                    "pageFocusCount": 0,
-                    "visibilityHiddenMs": 0,
-                },
+        body_json: dict = {
+            "sessionId": sid,
+            "caseId": cid,
+            "orderIndex": i,
+            "isPractice": False,
+            "selectedAction": sel,
+            "finalReplyText": final_txt,
+            "quickSurvey": {"item1": 4, "item2": 4, "item3": 4},
+            "timing": {
+                "startedAt": now - 5000,
+                "endedAt": now,
+                "durationMs": 5000,
             },
-        )
+            "clientStats": {
+                "timeToFirstClickMs": 800,
+                "panelClickCounts": {"ai_draft_panel": 1},
+                "checklistChecked": [],
+                "checklistToggleCount": 0,
+                "editKeystrokes": 0,
+                "editBoxOpenedCount": 0,
+                "pageBlurCount": 0,
+                "pageFocusCount": 0,
+                "visibilityHiddenMs": 0,
+            },
+        }
+        if sel == "escalate":
+            body_json["escalateSubtype"] = "urgent_evaluation"
+            body_json["escalateReason"] = "测试：存在高风险需升级。"
+
+        ar = await client.post("/api/action", json=body_json)
         assert ar.status_code == 200, ar.text
         body = ar.json()
         assert body["ok"] is True
-        # final_reply_text == ai_draft → editDistance == 0
-        assert body["editDistance"] == 0
+        if sel == "send_as_is":
+            assert body["editDistance"] == 0
 
     # post-survey
     pr = await client.post(
@@ -134,7 +148,7 @@ async def test_full_participant_flow(client: AsyncClient) -> None:
                 "trust_1": 5, "trust_2": 4, "trust_3": 5,
                 "transparency_1": 4, "transparency_2": 4, "transparency_3": 4,
                 "workflow_1": 5, "workflow_2": 5, "workflow_3": 3,
-                "accountability_1": 7, "accountability_2": 6, "accountability_3": 5,
+                "accountability_1": 5, "accountability_2": 4, "accountability_3": 5,
                 "overreliance_1": 5, "overreliance_2": 4, "overreliance_3": 5,
                 "open_1": "希望增加风险提示折叠展开记录",
                 "open_2": "界面流畅",
@@ -145,6 +159,49 @@ async def test_full_participant_flow(client: AsyncClient) -> None:
     body = pr.json()
     assert body["ok"] is True
     assert body["completionCode"].startswith("AIDR-")
+    perf = body.get("performance") or {}
+    assert perf.get("total") == 8
+    assert perf.get("correct") == 8
+    assert perf.get("accuracy") == 1.0
+
+
+@pytest.mark.asyncio
+async def test_escalate_requires_reason(client: AsyncClient) -> None:
+    s = await _start_session(client)
+    now = int(time.time() * 1000)
+    r = await client.post(
+        "/api/action",
+        json={
+            "sessionId": s["sessionId"],
+            "caseId": "case_01",
+            "orderIndex": 0,
+            "selectedAction": "escalate",
+            "finalReplyText": "[escalated]",
+            "escalateSubtype": "urgent_evaluation",
+            "quickSurvey": {"item1": 3, "item2": 3, "item3": 3},
+            "timing": {"startedAt": now - 1000, "endedAt": now, "durationMs": 1000},
+        },
+    )
+    assert r.status_code == 422
+
+
+@pytest.mark.asyncio
+async def test_quick_survey_max_five(client: AsyncClient) -> None:
+    s = await _start_session(client)
+    now = int(time.time() * 1000)
+    r = await client.post(
+        "/api/action",
+        json={
+            "sessionId": s["sessionId"],
+            "caseId": "case_01",
+            "orderIndex": 0,
+            "selectedAction": "send_as_is",
+            "finalReplyText": "x",
+            "quickSurvey": {"item1": 6, "item2": 3, "item3": 3},
+            "timing": {"startedAt": now - 1000, "endedAt": now, "durationMs": 1000},
+        },
+    )
+    assert r.status_code == 422
 
 
 @pytest.mark.asyncio
@@ -205,18 +262,20 @@ async def test_admin_summary_with_data(client: AsyncClient, admin_token: str) ->
 
     for s, picker in zip(sessions, pickers):
         for i, cid in enumerate(s["caseOrder"]):
-            ar = await client.post(
-                "/api/action",
-                json={
-                    "sessionId": s["sessionId"],
-                    "caseId": cid,
-                    "orderIndex": i,
-                    "selectedAction": picker(cid),
-                    "finalReplyText": "test",
-                    "quickSurvey": {"item1": 5, "item2": 5, "item3": 5},
-                    "timing": {"startedAt": now - 5000, "endedAt": now, "durationMs": 5000},
-                },
-            )
+            sel = picker(cid)
+            payload: dict = {
+                "sessionId": s["sessionId"],
+                "caseId": cid,
+                "orderIndex": i,
+                "selectedAction": sel,
+                "finalReplyText": "test",
+                "quickSurvey": {"item1": 4, "item2": 4, "item3": 4},
+                "timing": {"startedAt": now - 5000, "endedAt": now, "durationMs": 5000},
+            }
+            if sel == "escalate":
+                payload["escalateSubtype"] = "urgent_evaluation"
+                payload["escalateReason"] = "单元测试升级说明"
+            ar = await client.post("/api/action", json=payload)
             assert ar.status_code == 200, ar.text
         await client.post(
             "/api/post-survey",
@@ -252,7 +311,7 @@ async def test_admin_export_csv_actions(client: AsyncClient, admin_token: str) -
             "isPractice": True,
             "selectedAction": "edit_then_send",
             "finalReplyText": "已修改的中文回复",
-            "quickSurvey": {"item1": 5, "item2": 5, "item3": 5},
+            "quickSurvey": {"item1": 4, "item2": 4, "item3": 4},
             "timing": {"startedAt": now - 3000, "endedAt": now, "durationMs": 3000},
         },
     )

@@ -62,9 +62,16 @@ export interface ActionResponse {
   editDistance: number;
 }
 
+export interface SessionPerformance {
+  correct: number;
+  total: number;
+  accuracy: number;
+}
+
 export interface PostSurveyResponse {
   ok: boolean;
   completionCode: string;
+  performance?: SessionPerformance;
 }
 
 export interface ConfusionMatrix {

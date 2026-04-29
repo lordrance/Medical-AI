@@ -8,6 +8,7 @@ import { api } from "@/lib/api/client";
 import { preSurveyConfig } from "@/lib/forms/preSurveyConfig";
 import { zh } from "@/lib/i18n/zh-CN";
 import { useStudy } from "@/lib/store";
+import { PageBack } from "@/components/PageBack";
 
 type Answer = string | number | string[];
 
@@ -55,6 +56,7 @@ export default function PreSurveyPage() {
 
   return (
     <div className="card card-section animate-slide-up">
+      <PageBack />
       <h2 className="text-xl font-semibold">{preSurveyConfig.title}</h2>
       <p className="mt-1 text-sm text-muted-foreground">
         {preSurveyConfig.description}
