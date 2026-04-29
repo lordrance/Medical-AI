@@ -40,9 +40,12 @@ python -m app.scripts.validate_data
 # 灌入 cases + order_templates 到数据库（幂等 upsert）
 python -m app.scripts.seed
 
-# 从数据库生成简单图表（需先有实验提交数据；仅 seed 无动作时图为空提示）
-python -m app.scripts.visualize_study_data
-# 输出：backend/out/charts/*.png（项目根 .gitignore 已忽略 out/）
+# Alembic
+alembic upgrade head            # 应用所有 migration
+alembic revision --autogenerate -m "your message"   # 生成新 migration
+```
+
+本地 DeepSeek + `/api/case` 完整路径与可视化脚本说明见 **`docs/LOCAL_INTEGRATION_TEST.md`**（脚本本身放在 `backend/tools/`，不纳入版本库）。
 
 ## 后续 Phase
 

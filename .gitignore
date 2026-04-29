@@ -35,6 +35,9 @@ htmlcov/
 backend/dev.db
 backend/.env
 
+# 本地/个人工具脚本（不提交）— 将 integration_llm_case_api.py、visualize_study_data.py 放此目录
+backend/tools/
+
 .DS_Store
 .idea/
 .vscode/
