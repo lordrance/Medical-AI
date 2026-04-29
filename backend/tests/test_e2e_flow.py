@@ -57,6 +57,22 @@ async def test_case_endpoint_filters_by_condition(client: AsyncClient) -> None:
 
 
 @pytest.mark.asyncio
+async def test_defect_case_returns_seeded_flawed_draft(client: AsyncClient) -> None:
+    """defect_present cases must keep seeded flawed aiDraft; LLM must not 'fix' them."""
+    from app.scripts.data_loader import load_cases
+
+    seeded = next(c for c in load_cases() if c["id"] == "case_01")
+    assert seeded["defectPresent"] is True
+    needle = seeded["aiDraft"][:24]
+
+    s = await _start_session(client)
+    r = await client.get(f"/api/case/case_01?sessionId={s['sessionId']}")
+    assert r.status_code == 200
+    draft = r.json()["case"]["aiDraft"]
+    assert needle in draft
+
+
+@pytest.mark.asyncio
 async def test_full_participant_flow(client: AsyncClient) -> None:
     s = await _start_session(client)
     sid = s["sessionId"]

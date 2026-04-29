@@ -40,7 +40,14 @@ async def _generate_ai_risk_tip(case: Case) -> str:
 
 
 async def _generate_case_draft(case: Case) -> str:
-    """Generate patient-facing draft from current case context via configured LLM."""
+    """Return the patient-facing AI draft.
+
+    For *defect* cases (defect_present=True), the seed `ai_draft` is the intentional
+    flawed text for the study. We must not call the LLM in that case, or the model
+    will "fix" the error and break the experiment.
+    """
+    if case.defect_present:
+        return case.ai_draft
     provider = get_provider()
     system, user_tpl = load_prompt("case_draft")
     user = render_template(
