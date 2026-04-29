@@ -128,13 +128,14 @@ async def confusion_matrix(db: AsyncSession) -> dict[str, Any]:
     correct = 0
     total = 0
     for r in rows:
-        gold = r.case.gold_action
+        c = r.case
         sel = r.action.selected_action  # type: ignore[union-attr]
+        gold = c.gold_action
         if gold not in idx or sel not in idx:
             continue
         matrix[idx[gold]][idx[sel]] += 1
         total += 1
-        if gold == sel:
+        if _action_matches_gold(c, sel):
             correct += 1
     return {
         "actions": actions,
@@ -234,11 +235,11 @@ async def per_participant_stats(db: AsyncSession) -> list[dict[str, Any]]:
             if a is None or c is None:
                 continue
             total += 1
+            sel = a.selected_action
+            if _action_matches_gold(c, sel):
+                match_gold += 1
             alts = c.gold_action_alternates or []
             gold = c.gold_action
-            sel = a.selected_action
-            if sel == gold:
-                match_gold += 1
             if c.defect_present and sel != gold and sel not in alts:
                 error_survival += 1
             if gold == "escalate" and a.escalate_flag:
