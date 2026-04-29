@@ -182,6 +182,27 @@ async def test_full_participant_flow(client: AsyncClient) -> None:
 
 
 @pytest.mark.asyncio
+async def test_submit_same_case_twice_is_idempotent(client: AsyncClient) -> None:
+    s = await _start_session(client)
+    sid = s["sessionId"]
+    cid = s["caseOrder"][0]
+    now = int(time.time() * 1000)
+    common = {
+        "sessionId": sid,
+        "caseId": cid,
+        "orderIndex": 0,
+        "selectedAction": "send_as_is",
+        "finalReplyText": "same",
+        "quickSurvey": {"item1": 3, "item2": 3, "item3": 3},
+        "timing": {"startedAt": now - 5000, "endedAt": now, "durationMs": 5000},
+    }
+    r1 = await client.post("/api/action", json=common)
+    r2 = await client.post("/api/action", json=common)
+    assert r1.status_code == 200 and r2.status_code == 200
+    assert r1.json()["casePresentationId"] == r2.json()["casePresentationId"]
+
+
+@pytest.mark.asyncio
 async def test_escalate_requires_reason(client: AsyncClient) -> None:
     s = await _start_session(client)
     now = int(time.time() * 1000)

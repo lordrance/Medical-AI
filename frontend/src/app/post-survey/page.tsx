@@ -57,7 +57,7 @@ export default function PostSurveyPage() {
 
   return (
     <div className="card card-section animate-slide-up">
-      <PageBack />
+      <PageBack hide />
       <h2 className="text-xl font-semibold">{postSurveyConfig.title}</h2>
       <p className="mt-1 text-sm text-muted-foreground">
         {postSurveyConfig.description}

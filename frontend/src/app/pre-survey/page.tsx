@@ -56,7 +56,7 @@ export default function PreSurveyPage() {
 
   return (
     <div className="card card-section animate-slide-up">
-      <PageBack />
+      <PageBack hide />
       <h2 className="text-xl font-semibold">{preSurveyConfig.title}</h2>
       <p className="mt-1 text-sm text-muted-foreground">
         {preSurveyConfig.description}

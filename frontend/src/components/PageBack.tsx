@@ -4,8 +4,9 @@ import { useRouter } from "next/navigation";
 import { ArrowLeft } from "lucide-react";
 import { zh } from "@/lib/i18n/zh-CN";
 
-export function PageBack() {
+export function PageBack({ hide }: { hide?: boolean }) {
   const router = useRouter();
+  if (hide) return null;
   return (
     <button
       type="button"

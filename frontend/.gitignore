@@ -11,4 +11,4 @@ dist/
 !.env.example
 
 next-env.d.ts
-frontend/tsconfig.tsbuildinfo
+*.tsbuildinfo

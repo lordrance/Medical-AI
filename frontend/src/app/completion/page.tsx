@@ -3,7 +3,6 @@
 import { CheckCircle2 } from "lucide-react";
 import { useStudy } from "@/lib/store";
 import { zh } from "@/lib/i18n/zh-CN";
-import { PageBack } from "@/components/PageBack";
 
 export default function CompletionPage() {
   const code = useStudy((s) => s.completionCode);
@@ -16,9 +15,6 @@ export default function CompletionPage() {
 
   return (
     <div className="card card-section animate-slide-up text-center">
-      <div className="text-left">
-        <PageBack />
-      </div>
       <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-primary/10 text-primary">
         <CheckCircle2 className="h-7 w-7" />
       </div>

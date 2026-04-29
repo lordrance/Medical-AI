@@ -4,7 +4,8 @@ from datetime import datetime, timezone
 
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field, model_validator
-from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import select
+from sqlalchemy.orm import selectinload
 
 from app.api.deps import db_session
 from app.db.models import Action, Case, CasePresentation, CaseSurvey, Session
@@ -79,6 +80,24 @@ async def submit_action(
     case = await db.get(Case, body.caseId)
     if case is None:
         raise HTTPException(404, "Unknown case")
+
+    # Idempotent: same session + case already submitted (e.g. user pressed browser back
+    # and submitted again) — return existing row, do not duplicate records.
+    existing_stmt = (
+        select(CasePresentation)
+        .where(
+            CasePresentation.session_id == session.id,
+            CasePresentation.case_id == case.id,
+        )
+        .options(selectinload(CasePresentation.action))
+    )
+    existing_pres = (await db.execute(existing_stmt)).scalars().first()
+    if existing_pres is not None and existing_pres.action is not None:
+        return ActionResponse(
+            ok=True,
+            casePresentationId=existing_pres.id,
+            editDistance=existing_pres.action.edit_distance or 0,
+        )
 
     edit_distance = levenshtein(case.ai_draft, body.finalReplyText)
 

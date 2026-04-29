@@ -29,13 +29,11 @@ ACTION_LABEL_ZH: dict[str, str] = {
 class EscalateSubtype(str, Enum):
     urgent_evaluation = "urgent_evaluation"
     call_patient = "call_patient"
-    ed_instruction = "ed_instruction"
     other = "other"
 
 
 ESCALATE_SUBTYPE_LABEL_ZH: dict[str, str] = {
-    "urgent_evaluation": "建议立即就诊",
+    "urgent_evaluation": "建议立即就诊或急诊",
     "call_patient": "电话回访患者",
-    "ed_instruction": "建议急诊就医",
     "other": "其他升级处理",
 }

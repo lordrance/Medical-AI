@@ -29,6 +29,26 @@ def _action_matches_gold(case: Case, selected: str) -> bool:
     return selected == case.gold_action or selected in alts
 
 
+def _dedupe_presentations_by_session_case(
+    rows: list[CasePresentation],
+) -> list[CasePresentation]:
+    """If the same case was submitted more than once (e.g. browser back), keep latest."""
+    best: dict[tuple[str, str], CasePresentation] = {}
+    for p in rows:
+        if p.action is None:
+            continue
+        key = (p.session_id, p.case_id)
+        other = best.get(key)
+        if other is None:
+            best[key] = p
+            continue
+        t_new = p.action.server_received_at
+        t_old = other.action.server_received_at  # type: ignore[union-attr]
+        if t_new > t_old:
+            best[key] = p
+    return list(best.values())
+
+
 async def session_formal_performance(
     db: AsyncSession, session_id: str
 ) -> dict[str, Any]:
@@ -44,6 +64,9 @@ async def session_formal_performance(
     )
     rows = (await db.execute(stmt)).scalars().all()
     formal = [r for r in rows if r.case is not None and not r.case.is_practice]
+    formal = _dedupe_presentations_by_session_case(
+        [p for p in formal if p.action is not None]
+    )
     correct = 0
     for p in formal:
         assert p.case is not None and p.action is not None
@@ -89,7 +112,12 @@ async def _formal_presentations(db: AsyncSession) -> list[CasePresentation]:
         )
     )
     rows = (await db.execute(stmt)).scalars().all()
-    return [r for r in rows if r.case is not None and not r.case.is_practice and r.action is not None]
+    filtered = [
+        r
+        for r in rows
+        if r.case is not None and not r.case.is_practice and r.action is not None
+    ]
+    return _dedupe_presentations_by_session_case(filtered)
 
 
 async def confusion_matrix(db: AsyncSession) -> dict[str, Any]:

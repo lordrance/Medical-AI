@@ -75,9 +75,8 @@ export const zh = {
     label: "升级处理类型",
     options: {
       "": "—",
-      urgent_evaluation: "建议立即就诊",
+      urgent_evaluation: "建议立即就诊或急诊",
       call_patient: "电话回访患者",
-      ed_instruction: "建议急诊就医",
       other: "其他升级处理",
     },
   },
