@@ -40,10 +40,9 @@ python -m app.scripts.validate_data
 # 灌入 cases + order_templates 到数据库（幂等 upsert）
 python -m app.scripts.seed
 
-# Alembic
-alembic upgrade head            # 应用所有 migration
-alembic revision --autogenerate -m "your message"   # 生成新 migration
-```
+# 从数据库生成简单图表（需先有实验提交数据；仅 seed 无动作时图为空提示）
+python -m app.scripts.visualize_study_data
+# 输出：backend/out/charts/*.png（项目根 .gitignore 已忽略 out/）
 
 ## 后续 Phase
 
