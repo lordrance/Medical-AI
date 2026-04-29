@@ -280,6 +280,18 @@ export function CasePage(props: CasePageProps) {
             <ChartSnapshot snapshot={casePayload.chartSnapshot} />
           </Section>
 
+          {condition === "guardrail" && casePayload.guardrail && (
+            <GuardrailPanel
+              guardrail={casePayload.guardrail}
+              caseId={casePayload.id}
+              onPanelClick={(p) => {
+                recordFirstClick();
+                bumpPanel(p);
+              }}
+              onLogEvent={onLogEvent}
+            />
+          )}
+
           <Section
             title={zh.caseUI.aiDraft}
             onClick={() => {
@@ -292,18 +304,6 @@ export function CasePage(props: CasePageProps) {
               {casePayload.aiDraft}
             </p>
           </Section>
-
-          {condition === "guardrail" && casePayload.guardrail && (
-            <GuardrailPanel
-              guardrail={casePayload.guardrail}
-              caseId={casePayload.id}
-              onPanelClick={(p) => {
-                recordFirstClick();
-                bumpPanel(p);
-              }}
-              onLogEvent={onLogEvent}
-            />
-          )}
 
           <Section
             title={zh.caseUI.actionsHeading}

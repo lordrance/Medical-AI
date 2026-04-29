@@ -46,7 +46,8 @@ async def test_case_endpoint_filters_by_condition(client: AsyncClient) -> None:
     plain = seen_conditions["plain"]
     rp = await client.get(f"/api/case/case_01?sessionId={plain['sessionId']}")
     assert rp.status_code == 200
-    assert rp.json()["case"].get("guardrail") is None
+    p_case = rp.json()["case"]
+    assert p_case.get("guardrail") is None
 
     guard = seen_conditions["guardrail"]
     rg = await client.get(f"/api/case/case_01?sessionId={guard['sessionId']}")
