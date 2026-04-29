@@ -280,7 +280,7 @@ export function CasePage(props: CasePageProps) {
             <ChartSnapshot snapshot={casePayload.chartSnapshot} />
           </Section>
 
-          {casePayload.guardrail && (
+          {condition === "guardrail" && casePayload.guardrail && (
             <GuardrailPanel
               guardrail={casePayload.guardrail}
               caseId={casePayload.id}

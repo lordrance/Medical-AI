@@ -84,8 +84,9 @@ async def get_case(
 
     is_guardrail = participant.condition == "guardrail"
     ai_draft = await _generate_case_draft(case)
-    # 两组均返回护栏内容（AI 总结 + AI 风险提示），便于练习与正式案例一致展示
-    risk_text = await _generate_ai_risk_tip(case)
+    risk_for_guardrail = (
+        await _generate_ai_risk_tip(case) if is_guardrail else case.risk_cue
+    )
 
     return CaseResponse(
         case=CasePayload(
@@ -95,10 +96,14 @@ async def get_case(
             patientMessage=case.patient_message,
             chartSnapshot=case.chart_snapshot,
             aiDraft=ai_draft,
-            guardrail=GuardrailContent(
-                factsUsed=case.facts_used,
-                riskCue=risk_text,
-                checklist=[],
+            guardrail=(
+                GuardrailContent(
+                    factsUsed=case.facts_used,
+                    riskCue=risk_for_guardrail,
+                    checklist=[],
+                )
+                if is_guardrail
+                else None
             ),
         )
     )

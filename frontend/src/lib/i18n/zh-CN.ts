@@ -46,8 +46,8 @@ export const zh = {
     practice: "练习案例",
     condition: (c: string) =>
       c === "guardrail"
-        ? "实验组：护栏界面（含 AI 总结与风险提示）"
-        : "对照组：同样展示 AI 总结与风险提示（布局可与实验组略有差异）",
+        ? "实验组：护栏界面（含 AI 总结与 AI 风险提示）"
+        : "对照组：不展示护栏区（仅患者消息、病历摘要与 AI 草稿）",
     patientMessage: "患者消息",
     chartSnapshot: "病历摘要",
     aiDraft: "AI 起草的回复",
