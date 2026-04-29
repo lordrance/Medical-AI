@@ -1,0 +1,107 @@
+# Production docker-compose.
+# Brings up postgres + backend + frontend + nginx + nightly backup.
+#
+# Usage:
+#   cp .env.example .env       # set strong ADMIN_TOKEN, DEEPSEEK_API_KEY, POSTGRES_PASSWORD
+#   docker compose -f docker-compose.prod.yml up -d --build
+#
+# Notes:
+#   * Frontend Dockerfile is added in Phase 3.
+#   * Nginx terminates TLS in real deployments — here we ship a plain HTTP
+#     reverse proxy that routes / -> frontend, /api -> backend.
+
+services:
+  db:
+    image: postgres:15-alpine
+    restart: always
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-medai}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?must set POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB:-medai}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-medai}"]
+      interval: 10s
+      timeout: 3s
+      retries: 10
+
+  backend:
+    build:
+      context: ./backend
+    restart: always
+    environment:
+      DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER:-medai}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB:-medai}
+      ADMIN_TOKEN: ${ADMIN_TOKEN:?must set ADMIN_TOKEN}
+      CORS_ORIGINS: ${CORS_ORIGINS:-["https://your-domain"]}
+      LLM_PROVIDER: ${LLM_PROVIDER:-disabled}
+      LLM_DRY_RUN: ${LLM_DRY_RUN:-false}
+      DEEPSEEK_API_KEY: ${DEEPSEEK_API_KEY:-}
+      DEEPSEEK_BASE_URL: ${DEEPSEEK_BASE_URL:-https://api.deepseek.com}
+      DEEPSEEK_MODEL: ${DEEPSEEK_MODEL:-deepseek-chat}
+      RUN_MIGRATIONS: "true"
+      SEED_ON_START: "true"
+      APP_ENV: production
+    depends_on:
+      db:
+        condition: service_healthy
+    expose:
+      - "8000"
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:8000/healthz"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+
+  frontend:
+    build:
+      context: ./frontend
+      args:
+        NEXT_PUBLIC_API_BASE: /api
+    restart: always
+    environment:
+      NEXT_PUBLIC_API_BASE: /api
+    depends_on:
+      backend:
+        condition: service_healthy
+    expose:
+      - "3000"
+
+  nginx:
+    image: nginx:1.27-alpine
+    restart: always
+    depends_on:
+      - backend
+    ports:
+      - "80:80"
+    volumes:
+      - ./docker/nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+
+  backup:
+    image: postgres:15-alpine
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    volumes:
+      - ./backups:/backups
+    environment:
+      PGUSER: ${POSTGRES_USER:-medai}
+      PGPASSWORD: ${POSTGRES_PASSWORD}
+      PGHOST: db
+      PGDATABASE: ${POSTGRES_DB:-medai}
+    entrypoint: |
+      /bin/sh -c '
+      mkdir -p /backups
+      while true; do
+        ts=$$(date +%Y%m%d_%H%M%S)
+        echo "[backup] running pg_dump at $$ts"
+        pg_dump --format=custom --file="/backups/$$ts.dump" || echo "[backup] pg_dump failed"
+        # keep newest 30
+        ls -1t /backups/*.dump 2>/dev/null | tail -n +31 | xargs -r rm -f
+        sleep ${BACKUP_INTERVAL_SECONDS:-86400}
+      done
+      '
+
+volumes:
+  pgdata:
