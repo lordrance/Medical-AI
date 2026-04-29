@@ -253,7 +253,7 @@ async def main() -> None:
         )
     )
     try:
-        import matplotlib.pyplot as plt  # noqa: F401
+        import matplotlib  # noqa: F401
     except ImportError as e:
         raise SystemExit(
             "Install: pip install matplotlib  or  pip install -e \".[dev]\""
