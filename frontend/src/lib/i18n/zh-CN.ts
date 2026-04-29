@@ -45,12 +45,14 @@ export const zh = {
     progress: (i: number, n: number) => `案例 ${i} / ${n}`,
     practice: "练习案例",
     condition: (c: string) =>
-      c === "guardrail" ? "实验组：含护栏面板" : "对照组：仅基础信息",
+      c === "guardrail"
+        ? "实验组：护栏界面（含 AI 总结与风险提示）"
+        : "对照组：同样展示 AI 总结与风险提示（布局可与实验组略有差异）",
     patientMessage: "患者消息",
     chartSnapshot: "病历摘要",
     aiDraft: "AI 起草的回复",
     guardrailTitle: "护栏面板（仅本组可见）",
-    factsUsed: "AI 使用的事实",
+    factsUsed: "AI 总结",
     riskCue: "AI 风险提示",
     checklist: "核查清单",
     actionsHeading: "请选择处理方式",
