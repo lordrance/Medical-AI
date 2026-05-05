@@ -44,13 +44,21 @@ export const zh = {
   caseUI: {
     progress: (i: number, n: number) => `案例 ${i} / ${n}`,
     practice: "练习案例",
+    caseIdLabel: "案例编号",
+    formalProgressHint: (i: number, n: number) => `正式进度：第 ${i} 题 / 共 ${n} 题`,
+    practiceProgressHint: "练习案例（不计入正式进度）",
     condition: (c: string) =>
       c === "guardrail"
-        ? "实验组：护栏界面（含 AI 总结与风险提示）"
-        : "对照组：同样展示 AI 总结与风险提示（布局可与实验组略有差异）",
+        ? "实验组：护栏界面（含 AI 总结与 AI 风险提示）"
+        : "对照组：不展示护栏区（仅患者消息、病历摘要与 AI 草稿）",
     patientMessage: "患者消息",
     chartSnapshot: "病历摘要",
+    chartExpand: "展开病历摘要",
+    chartCollapse: "收起病历摘要",
     aiDraft: "AI 起草的回复",
+    sendAsIsAckLabel:
+      "原样发送前请确认：我已核对 AI 草稿与病历摘要等信息，再决定是否发送。",
+    sendAsIsAckRequired: "若选择原样发送，请先勾选上述核对确认。",
     guardrailTitle: "护栏面板（仅本组可见）",
     factsUsed: "AI 总结",
     riskCue: "AI 风险提示",
@@ -68,7 +76,7 @@ export const zh = {
     quickContinue: "继续下一案例",
   },
   actions: {
-    send_as_is: { label: "直接发送", hint: "不修改 AI 草稿，原样发送给患者" },
+    send_as_is: { label: "原样发送", hint: "不修改 AI 草稿，原样发送给患者" },
     edit_then_send: { label: "编辑后发送", hint: "在 AI 草稿基础上做修改后再发送" },
     discard_and_rewrite: { label: "弃用并重写", hint: "弃用 AI 草稿，自行重新撰写" },
     escalate: { label: "升级处理", hint: "本消息不宜按普通在线问诊回复处理" },

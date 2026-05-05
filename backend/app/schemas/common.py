@@ -19,7 +19,7 @@ class SelectedAction(str, Enum):
 # into the frontend i18n dict. Keeping them server-side ensures admin export
 # uses identical labels.
 ACTION_LABEL_ZH: dict[str, str] = {
-    "send_as_is": "直接发送",
+    "send_as_is": "原样发送",
     "edit_then_send": "编辑后发送",
     "discard_and_rewrite": "弃用并重写",
     "escalate": "升级处理",

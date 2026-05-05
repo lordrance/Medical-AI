@@ -3,10 +3,12 @@ from __future__ import annotations
 import json
 
 from fastapi import APIRouter, Depends, HTTPException, Query
+from pydantic import BaseModel, Field
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import db_session
-from app.db.models import Case, Participant, Session
+from app.db.models import Action, Case, CasePresentation, Participant, Session
 from app.llm.base import LLMUnavailable
 from app.llm.factory import get_provider
 from app.llm.prompts import load_prompt, render_template
@@ -84,8 +86,9 @@ async def get_case(
 
     is_guardrail = participant.condition == "guardrail"
     ai_draft = await _generate_case_draft(case)
-    # 两组均返回护栏内容（AI 总结 + AI 风险提示），便于练习与正式案例一致展示
-    risk_text = await _generate_ai_risk_tip(case)
+    risk_for_guardrail = (
+        await _generate_ai_risk_tip(case) if is_guardrail else case.risk_cue
+    )
 
     return CaseResponse(
         case=CasePayload(
@@ -95,10 +98,71 @@ async def get_case(
             patientMessage=case.patient_message,
             chartSnapshot=case.chart_snapshot,
             aiDraft=ai_draft,
-            guardrail=GuardrailContent(
-                factsUsed=case.facts_used,
-                riskCue=risk_text,
-                checklist=[],
+            guardrail=(
+                GuardrailContent(
+                    factsUsed=case.facts_used,
+                    riskCue=risk_for_guardrail,
+                    checklist=[],
+                )
+                if is_guardrail
+                else None
             ),
         )
     )
+
+
+class CaseOpenIn(BaseModel):
+    sessionId: str
+    caseId: str
+    orderIndex: int = Field(..., ge=-1)
+
+
+class CaseOpenOut(BaseModel):
+    casePresentationId: str
+
+
+@router.post("/open", response_model=CaseOpenOut)
+async def open_case(
+    body: CaseOpenIn,
+    db: AsyncSession = Depends(db_session),
+) -> CaseOpenOut:
+    """Create or return an in-progress CasePresentation for UI event correlation."""
+    session = await db.get(Session, body.sessionId)
+    if session is None:
+        raise HTTPException(404, "Unknown session")
+    case = await db.get(Case, body.caseId)
+    if case is None:
+        raise HTTPException(404, "Case not found")
+
+    reuse_stmt = (
+        select(CasePresentation)
+        .outerjoin(Action, Action.case_presentation_id == CasePresentation.id)
+        .where(
+            CasePresentation.session_id == session.id,
+            CasePresentation.case_id == case.id,
+            Action.id.is_(None),
+        )
+        .order_by(CasePresentation.started_at.asc())
+        .limit(1)
+    )
+    existing = (await db.execute(reuse_stmt)).scalars().first()
+    if existing is not None:
+        existing.order_index = body.orderIndex
+        await db.commit()
+        return CaseOpenOut(casePresentationId=existing.id)
+
+    from datetime import datetime, timezone
+
+    now = datetime.now(timezone.utc)
+    pres = CasePresentation(
+        session_id=session.id,
+        case_id=case.id,
+        order_index=body.orderIndex,
+        started_at=now,
+        ended_at=None,
+        duration_ms=None,
+    )
+    db.add(pres)
+    await db.commit()
+    await db.refresh(pres)
+    return CaseOpenOut(casePresentationId=pres.id)

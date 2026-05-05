@@ -4,7 +4,12 @@ import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { CasePage } from "@/components/case/CasePage";
 import { api } from "@/lib/api/client";
-import type { ActionResponse, CaseResponse, CasePayload } from "@/lib/api/types";
+import type {
+  ActionResponse,
+  CaseOpenResponse,
+  CaseResponse,
+  CasePayload,
+} from "@/lib/api/types";
 import { logEvent } from "@/lib/logger";
 import { useStudy } from "@/lib/store";
 import { zh } from "@/lib/i18n/zh-CN";
@@ -16,6 +21,7 @@ export default function PracticePage() {
   const setStep = useStudy((s) => s.setStep);
   const setCaseIndex = useStudy((s) => s.setCaseIndex);
   const [casePayload, setCasePayload] = useState<CasePayload | null>(null);
+  const [casePresentationId, setCasePresentationId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -23,11 +29,30 @@ export default function PracticePage() {
       router.replace("/consent");
       return;
     }
-    void api<CaseResponse>(`/api/case/${session.practiceCaseId}`, {
-      query: { sessionId: session.sessionId },
-    })
-      .then((r) => setCasePayload(r.case))
-      .catch((e) => setError((e as Error).message));
+    setCasePayload(null);
+    setCasePresentationId(null);
+    void (async () => {
+      try {
+        const cr = await api<CaseResponse>(
+          `/api/case/${session.practiceCaseId}`,
+          {
+            query: { sessionId: session.sessionId },
+          },
+        );
+        setCasePayload(cr.case);
+        const op = await api<CaseOpenResponse>("/api/case/open", {
+          method: "POST",
+          body: {
+            sessionId: session.sessionId,
+            caseId: session.practiceCaseId,
+            orderIndex: -1,
+          },
+        });
+        setCasePresentationId(op.casePresentationId);
+      } catch (e) {
+        setError((e as Error).message);
+      }
+    })();
   }, [session, router]);
 
   if (error) return <div className="card card-section text-destructive">{zh.errors.network}</div>;
@@ -38,12 +63,15 @@ export default function PracticePage() {
     <>
       <PageBack />
       <CasePage
-      casePayload={casePayload}
-      condition={session.condition}
-      progressCurrent={0}
-      progressTotal={session.caseOrder.length}
-      practiceBanner
-      onLogEvent={(t, p) => logEvent(session.sessionId, t, p)}
+        casePayload={casePayload}
+        condition={session.condition}
+        progressCurrent={0}
+        progressTotal={session.caseOrder.length}
+        practiceBanner
+        casePresentationId={casePresentationId}
+        onLogEvent={(t, p) =>
+          logEvent(session.sessionId, t, p, casePresentationId ?? undefined)
+        }
       onSubmit={async (result) => {
         await api<ActionResponse>("/api/action", {
           method: "POST",

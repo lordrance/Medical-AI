@@ -38,6 +38,7 @@ class ClientStatsIn(BaseModel):
     pageBlurCount: int = 0
     pageFocusCount: int = 0
     visibilityHiddenMs: int = 0
+    interactionMetrics: dict[str, object] | None = None
 
 
 class ActionIn(BaseModel):
@@ -100,18 +101,39 @@ async def submit_action(
             editDistance=existing_pres.action.edit_distance or 0,
         )
 
-    edit_distance = levenshtein(case.ai_draft, body.finalReplyText)
-
-    presentation = CasePresentation(
-        session_id=session.id,
-        case_id=case.id,
-        order_index=body.orderIndex,
-        started_at=_to_dt(body.timing.startedAt),
-        ended_at=_to_dt(body.timing.endedAt),
-        duration_ms=body.timing.durationMs,
+    in_progress_stmt = (
+        select(CasePresentation)
+        .outerjoin(Action, Action.case_presentation_id == CasePresentation.id)
+        .where(
+            CasePresentation.session_id == session.id,
+            CasePresentation.case_id == case.id,
+            Action.id.is_(None),
+        )
+        .order_by(CasePresentation.started_at.asc())
+        .limit(1)
     )
-    db.add(presentation)
-    await db.flush()
+    in_progress = (await db.execute(in_progress_stmt)).scalars().first()
+
+    if in_progress is not None:
+        presentation = in_progress
+        presentation.order_index = body.orderIndex
+        presentation.started_at = _to_dt(body.timing.startedAt)
+        presentation.ended_at = _to_dt(body.timing.endedAt)
+        presentation.duration_ms = body.timing.durationMs
+        await db.flush()
+    else:
+        presentation = CasePresentation(
+            session_id=session.id,
+            case_id=case.id,
+            order_index=body.orderIndex,
+            started_at=_to_dt(body.timing.startedAt),
+            ended_at=_to_dt(body.timing.endedAt),
+            duration_ms=body.timing.durationMs,
+        )
+        db.add(presentation)
+        await db.flush()
+
+    edit_distance = levenshtein(case.ai_draft, body.finalReplyText)
 
     sa = body.selectedAction
     db.add(

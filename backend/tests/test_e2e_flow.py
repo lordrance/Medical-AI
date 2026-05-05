@@ -47,8 +47,7 @@ async def test_case_endpoint_filters_by_condition(client: AsyncClient) -> None:
     rp = await client.get(f"/api/case/case_01?sessionId={plain['sessionId']}")
     assert rp.status_code == 200
     p_case = rp.json()["case"]
-    assert p_case.get("guardrail") is not None
-    assert len(p_case["guardrail"].get("factsUsed", [])) >= 1
+    assert p_case.get("guardrail") is None
 
     guard = seen_conditions["guardrail"]
     rg = await client.get(f"/api/case/case_01?sessionId={guard['sessionId']}")
@@ -56,6 +55,53 @@ async def test_case_endpoint_filters_by_condition(client: AsyncClient) -> None:
     g_case = rg.json()["case"]
     assert g_case["guardrail"] is not None
     assert "checklist" in g_case["guardrail"]
+
+
+@pytest.mark.asyncio
+async def test_case_open_reuses_row_then_action_attaches(client: AsyncClient) -> None:
+    s = await _start_session(client)
+    sid = s["sessionId"]
+    cid = s["caseOrder"][0]
+    ro = await client.post(
+        "/api/case/open",
+        json={"sessionId": sid, "caseId": cid, "orderIndex": 0},
+    )
+    assert ro.status_code == 200
+    pres_id = ro.json()["casePresentationId"]
+    ro2 = await client.post(
+        "/api/case/open",
+        json={"sessionId": sid, "caseId": cid, "orderIndex": 0},
+    )
+    assert ro2.json()["casePresentationId"] == pres_id
+
+    now = int(time.time() * 1000)
+    from app.scripts.data_loader import load_cases
+
+    draft = next(c for c in load_cases() if c["id"] == cid)["aiDraft"]
+    ar = await client.post(
+        "/api/action",
+        json={
+            "sessionId": sid,
+            "caseId": cid,
+            "orderIndex": 0,
+            "selectedAction": "send_as_is",
+            "finalReplyText": draft,
+            "quickSurvey": {"item1": 4, "item2": 4, "item3": 4},
+            "timing": {"startedAt": now - 1000, "endedAt": now, "durationMs": 1000},
+            "clientStats": {
+                "interactionMetrics": {
+                    "chartExpandToggleCount": 1,
+                    "guardrailExpandToggleCount": 0,
+                    "draftSourceSwitchCount": 2,
+                    "chartEverExpandedToView": True,
+                    "guardrailEverExpandedToView": False,
+                    "sendAsIsAcknowledged": True,
+                },
+            },
+        },
+    )
+    assert ar.status_code == 200
+    assert ar.json()["casePresentationId"] == pres_id
 
 
 @pytest.mark.asyncio
@@ -332,7 +378,7 @@ async def test_admin_summary_with_data(client: AsyncClient, admin_token: str) ->
     assert cm["total"] == 24  # 3 × 8 formal cases
     # 2 perfect (16/16) + 1 lazy who matches at gold=send_as_is cases (some) → > 50%
     assert 0.5 <= cm["accuracy"] < 1.0
-    assert cm["actionsZh"] == ["直接发送", "编辑后发送", "弃用并重写", "升级处理"]
+    assert cm["actionsZh"] == ["原样发送", "编辑后发送", "弃用并重写", "升级处理"]
     assert len(body["perCase"]) == 8
     assert len(body["perParticipant"]) == 3
 

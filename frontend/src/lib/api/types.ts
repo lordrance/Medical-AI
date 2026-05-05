@@ -44,6 +44,21 @@ export interface QuickSurvey {
   item3: number;
 }
 
+export interface InteractionMetrics {
+  /** 病历摘要展开次数（从收起切到展开） */
+  chartExpandToggleCount: number;
+  /** 护栏区整体展开次数（仅 guardrail 组有意义） */
+  guardrailExpandToggleCount: number;
+  /** 草稿区与「源信息」（病历/护栏核查）之间的焦点切换次数 */
+  draftSourceSwitchCount: number;
+  /** 是否曾展开查看病历摘要 */
+  chartEverExpandedToView: boolean;
+  /** 是否曾展开查看护栏（AI 总结/风险提示） */
+  guardrailEverExpandedToView: boolean;
+  /** 选择「原样发送」前是否勾选核对确认 */
+  sendAsIsAcknowledged: boolean;
+}
+
 export interface ClientStats {
   timeToFirstClickMs: number | null;
   panelClickCounts: Record<string, number>;
@@ -54,12 +69,17 @@ export interface ClientStats {
   pageBlurCount: number;
   pageFocusCount: number;
   visibilityHiddenMs: number;
+  interactionMetrics?: InteractionMetrics;
 }
 
 export interface ActionResponse {
   ok: boolean;
   casePresentationId: string;
   editDistance: number;
+}
+
+export interface CaseOpenResponse {
+  casePresentationId: string;
 }
 
 export interface SessionPerformance {
