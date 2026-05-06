@@ -38,6 +38,12 @@ uvicorn app.main:app --reload --port 8000
 
 前端管理页 `admin?token=...` 提供整库与 ZIP 的下载入口。
 
+## V3 近期变更摘要（与本分支相关）
+
+- **案例交互**：原样发送前核对勾选；病历可折叠；案例编号与进度；行为打点与 `POST /api/case/open`；plain 组不展示护栏区。
+- **管理员导出**：整库 SQL（`/api/admin/export/full-database`）、多表 ZIP（`/api/admin/export/bundle`）、单表扩展至 `cases`、`order_templates`、`llm_calls`、`cohort_summaries`。
+- **演示脚本**：`python -m app.scripts.showcase_export_demo`、`python -m app.scripts.full_export_scope_demo`（可选）。
+
 ## 测试
 
 ```bash
