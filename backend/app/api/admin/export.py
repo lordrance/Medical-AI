@@ -1,6 +1,8 @@
 from __future__ import annotations
 
+import io
 import json
+import zipfile
 from typing import Any, Literal
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
@@ -13,8 +15,12 @@ from app.api.deps import db_session
 from app.core.security import require_admin
 from app.db.models import (
     Action,
+    Case,
     CasePresentation,
     CaseSurvey,
+    CohortSummary,
+    LLMCall,
+    OrderTemplate,
     Participant,
     PostSurvey,
     Session as SessionModel,
@@ -27,6 +33,7 @@ from app.services.analysis import (
     per_participant_stats,
 )
 from app.services.csv_export import flatten_summary, to_csv
+from app.services.database_dump import full_database_dump_bytes
 
 router = APIRouter(prefix="/api/admin", tags=["admin"])
 
@@ -38,8 +45,88 @@ TableName = Literal[
     "case_surveys",
     "post_surveys",
     "ui_events",
+    "cases",
+    "order_templates",
+    "llm_calls",
+    "cohort_summaries",
     "summary",
 ]
+
+EXPORT_DATA_TABLES: tuple[str, ...] = (
+    "participants",
+    "sessions",
+    "case_presentations",
+    "actions",
+    "case_surveys",
+    "post_surveys",
+    "ui_events",
+    "cases",
+    "order_templates",
+    "llm_calls",
+    "cohort_summaries",
+    "summary",
+)
+
+
+@router.get("/export/full-database")
+async def export_full_database(request: Request) -> Response:
+    """Download entire DB as SQL (SQLite: iterdump; Postgres: pg_dump). Admin only."""
+    require_admin(request)
+    try:
+        content, filename, media_type = full_database_dump_bytes()
+    except RuntimeError as e:
+        raise HTTPException(503, str(e)) from e
+    return Response(
+        content=content,
+        media_type=media_type,
+        headers={
+            "Content-Disposition": f'attachment; filename="{filename}"',
+        },
+    )
+
+
+@router.get("/export/bundle")
+async def export_bundle(
+    request: Request,
+    tables: str | None = Query(
+        None,
+        description="Comma-separated table names; omit for default study bundle.",
+    ),
+    db: AsyncSession = Depends(db_session),
+) -> Response:
+    """ZIP of CSV files for selected tables (admin only)."""
+    require_admin(request)
+    if tables:
+        names = [t.strip() for t in tables.split(",") if t.strip()]
+        invalid = [t for t in names if t not in EXPORT_DATA_TABLES]
+        if invalid:
+            raise HTTPException(
+                400,
+                f"unknown tables: {invalid}; allowed: {list(EXPORT_DATA_TABLES)}",
+            )
+        chosen = names
+    else:
+        chosen = list(EXPORT_DATA_TABLES)
+
+    buf = io.BytesIO()
+    with zipfile.ZipFile(buf, mode="w", compression=zipfile.ZIP_DEFLATED) as zf:
+        for name in chosen:
+            rows = await _load_table(name, db)
+            if name == "summary":
+                flat = flatten_summary(rows)  # type: ignore[arg-type]
+                csv_text = to_csv(flat)
+            else:
+                csv_text = to_csv(rows)  # type: ignore[arg-type]
+            zf.writestr(f"{name}.csv", csv_text.encode("utf-8"))
+    buf.seek(0)
+    payload = buf.getvalue()
+    return Response(
+        content=payload,
+        media_type="application/zip",
+        headers={
+            "Content-Disposition": 'attachment; filename="study_export.zip"',
+        },
+    )
 
 
 @router.get("/export")
@@ -238,6 +325,73 @@ async def _load_table(table: str, db: AsyncSession) -> Any:
                 ),
                 "clientTs": r.client_ts.isoformat() if r.client_ts else None,
                 "serverTs": r.server_ts.isoformat() if r.server_ts else None,
+            }
+            for r in rows
+        ]
+
+    if table == "cases":
+        rows = (await db.execute(select(Case))).scalars().all()
+        return [
+            {
+                "caseId": r.id,
+                "isPractice": r.is_practice,
+                "riskLevel": r.risk_level,
+                "defectPresent": r.defect_present,
+                "defectType": r.defect_type,
+                "purpose": r.purpose,
+                "patientMessage": r.patient_message,
+                "chartSnapshotJson": json.dumps(r.chart_snapshot, ensure_ascii=False),
+                "aiDraft": r.ai_draft,
+                "factsUsedJson": json.dumps(r.facts_used, ensure_ascii=False),
+                "riskCue": r.risk_cue,
+                "checklistJson": json.dumps(r.checklist, ensure_ascii=False),
+                "goldAction": r.gold_action,
+                "goldActionAlternatesJson": json.dumps(
+                    r.gold_action_alternates, ensure_ascii=False
+                ),
+                "version": r.version,
+                "language": r.language,
+            }
+            for r in rows
+        ]
+
+    if table == "order_templates":
+        rows = (await db.execute(select(OrderTemplate))).scalars().all()
+        return [
+            {
+                "orderTemplateId": r.id,
+                "orderJson": json.dumps(r.order, ensure_ascii=False),
+            }
+            for r in rows
+        ]
+
+    if table == "llm_calls":
+        rows = (await db.execute(select(LLMCall))).scalars().all()
+        return [
+            {
+                "llmCallId": r.id,
+                "purpose": r.purpose,
+                "provider": r.provider,
+                "model": r.model,
+                "promptText": r.prompt_text,
+                "responseText": r.response_text,
+                "promptTokens": r.prompt_tokens,
+                "completionTokens": r.completion_tokens,
+                "latencyMs": r.latency_ms,
+                "error": r.error,
+                "createdAt": r.created_at.isoformat() if r.created_at else None,
+            }
+            for r in rows
+        ]
+
+    if table == "cohort_summaries":
+        rows = (await db.execute(select(CohortSummary))).scalars().all()
+        return [
+            {
+                "cohortSummaryId": r.id,
+                "payloadJson": json.dumps(r.payload, ensure_ascii=False),
+                "summaryText": r.summary_text,
+                "createdAt": r.created_at.isoformat() if r.created_at else None,
             }
             for r in rows
         ]

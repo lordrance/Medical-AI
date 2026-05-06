@@ -1,7 +1,7 @@
 "use client";
 
 import { useParams, useRouter } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { CasePage } from "@/components/case/CasePage";
 import { api } from "@/lib/api/client";
 import type {
@@ -26,6 +26,11 @@ export default function FormalCasePage() {
   const [casePayload, setCasePayload] = useState<CasePayload | null>(null);
   const [casePresentationId, setCasePresentationId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const casePresentationIdRef = useRef<string | null>(null);
+
+  useEffect(() => {
+    casePresentationIdRef.current = casePresentationId;
+  }, [casePresentationId]);
 
   useEffect(() => {
     if (!session) {
@@ -81,7 +86,12 @@ export default function FormalCasePage() {
         progressTotal={total}
         casePresentationId={casePresentationId}
         onLogEvent={(t, p) =>
-          logEvent(session.sessionId, t, p, casePresentationId ?? undefined)
+          logEvent(
+            session.sessionId,
+            t,
+            p,
+            casePresentationIdRef.current ?? undefined,
+          )
         }
       onSubmit={async (result) => {
         await api<ActionResponse>("/api/action", {

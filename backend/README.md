@@ -25,6 +25,19 @@ uvicorn app.main:app --reload --port 8000
 #   - http://localhost:8000/openapi.json
 ```
 
+## 数据导出（管理员）
+
+- 在 `.env` 设置 `ADMIN_TOKEN`（生产环境请使用长随机串）。
+- **整库 SQL**：`GET /api/admin/export/full-database`（Header `X-Admin-Token` 或 `?token=`）  
+  - SQLite：返回 `iterdump` 文本，可本地还原。  
+  - PostgreSQL：需服务器安装 `pg_dump`，否则返回 503。
+- **多表 ZIP（CSV）**：`GET /api/admin/export/bundle`  
+  - 默认打包全部研究相关表 + `summary.csv`。  
+  - 节选：`/api/admin/export/bundle?tables=actions,ui_events`  
+- **单表**：`GET /api/admin/export?table=actions&format=csv`（见 OpenAPI `/docs`）。
+
+前端管理页 `admin?token=...` 提供整库与 ZIP 的下载入口。
+
 ## 测试
 
 ```bash

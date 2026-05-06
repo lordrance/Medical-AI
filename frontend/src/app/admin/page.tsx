@@ -19,6 +19,10 @@ const TABLES = [
   { id: "case_surveys", label: "案例后小题" },
   { id: "post_surveys", label: "后测问卷" },
   { id: "ui_events", label: "UI 事件" },
+  { id: "cases", label: "案例内容（题干）" },
+  { id: "order_templates", label: "顺序模板" },
+  { id: "llm_calls", label: "LLM 调用审计" },
+  { id: "cohort_summaries", label: "队列文本总结" },
   { id: "summary", label: "总览（混淆矩阵 + 打分量表）" },
 ];
 
@@ -248,6 +252,28 @@ function AdminInner() {
           <Download className="h-4 w-4" />
           {zh.admin.download}
         </h3>
+        <div className="mb-4 grid grid-cols-1 gap-3 rounded-md border border-border bg-muted/30 p-4 sm:grid-cols-2">
+          <div>
+            <p className="text-sm font-medium">{zh.admin.exportFullDb}</p>
+            <p className="mt-1 text-xs text-muted-foreground">{zh.admin.exportFullDbHint}</p>
+            <a
+              className="btn-primary mt-3 inline-flex text-xs"
+              href={`${getApiBase()}/api/admin/export/full-database?token=${encodeURIComponent(token)}`}
+            >
+              {zh.admin.exportFullDb}
+            </a>
+          </div>
+          <div>
+            <p className="text-sm font-medium">{zh.admin.exportBundle}</p>
+            <p className="mt-1 text-xs text-muted-foreground">{zh.admin.exportBundleHint}</p>
+            <a
+              className="btn-primary mt-3 inline-flex text-xs"
+              href={`${getApiBase()}/api/admin/export/bundle?token=${encodeURIComponent(token)}`}
+            >
+              study_export.zip
+            </a>
+          </div>
+        </div>
         <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
           {TABLES.map((t) => (
             <div

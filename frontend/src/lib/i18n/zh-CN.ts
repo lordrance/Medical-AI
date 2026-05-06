@@ -129,6 +129,12 @@ export const zh = {
     perCase: "按案例统计",
     perParticipant: "按参与者统计",
     download: "下载数据",
+    exportFullDb: "整库 SQL 导出",
+    exportFullDbHint:
+      "SQLite：文本 SQL；PostgreSQL：需服务器安装 pg_dump。用于完整备份或在本地还原全部表。",
+    exportBundle: "研究数据 ZIP（多表 CSV）",
+    exportBundleHint:
+      "默认包含参与者、会话、呈现、动作、问卷、UI 事件、案例内容、顺序模板、LLM 审计、总结表及 summary。可用 tables= 参数节选。",
     csv: "CSV",
     json: "JSON",
     llmHeading: "AI 自然语言总结",
