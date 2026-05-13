@@ -144,10 +144,10 @@ async def run() -> None:
         if act_rows:
             a = act_rows[0]
             slim = {
-                "sessionId": a.get("sessionId"),
-                "caseId": a.get("caseId"),
-                "selectedAction": a.get("selectedAction"),
-                "clientStatsJson_snippet": (a.get("clientStatsJson") or "")[:120] + "…",
+                "session_id": a.get("session_id"),
+                "case_id": a.get("case_id"),
+                "case_action_choice": a.get("case_action_choice"),
+                "client_stats_snippet": (a.get("client_stats") or "")[:120] + "…",
             }
             print("| field | value |")
             print("| --- | --- |")

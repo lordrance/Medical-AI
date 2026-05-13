@@ -69,7 +69,6 @@ async def run() -> None:
         assert r.status_code == 200, r.text
         s = r.json()
         sid = s["sessionId"]
-        pid = s["participantId"]
         order = s["caseOrder"]
         practice_id = s["practiceCaseId"]
 
@@ -235,7 +234,7 @@ async def run() -> None:
             "participants": "受试者画像",
             "sessions": "会话",
             "case_presentations": "案例呈现（练习+正式）",
-            "actions": "医生决策（含 clientStatsJson）",
+            "actions": "医生决策（含 client_stats 中 PDF log_* 自动记录）",
             "case_surveys": "每题简问卷 Likert",
             "post_surveys": "课后问卷",
             "ui_events": "细粒度 UI / 行为过程",
@@ -257,21 +256,21 @@ async def run() -> None:
         sess = csv_rows("sessions")[0]
         acts = csv_rows("actions")
         first_formal = next(
-            (a for a in acts if a.get("caseId") == order[0]),
+            (a for a in acts if a.get("case_id") == order[0]),
             acts[0],
         )
         surveys = csv_rows("case_surveys")
         posts = csv_rows("post_surveys")
         uis = [u for u in csv_rows("ui_events") if u.get("eventType") == "chart_expanded"]
         cp = csv_rows("case_presentations")
-        one_cp = next((c for c in cp if c.get("caseId") == order[0]), cp[0])
+        one_cp = next((c for c in cp if c.get("case_id") == order[0]), cp[0])
 
         print("## 2. participants.csv（当前受试者抽样）\n")
-        print("| participantId | condition | preSpecialty | preAiDraftingFamiliarity | completedFlag |")
+        print("| participant_id | condition | pre_specialty | pre_ai_drafting_familiarity | completed_flag |")
         print("| --- | --- | --- | --- | --- |")
         print(
-            f"| …{part.get('participantId', '')[-8:]} | {part.get('condition')} | "
-            f"{part.get('preSpecialty')} | {part.get('preAiDraftingFamiliarity')} | {part.get('completedFlag')} |"
+            f"| …{part.get('participant_id', '')[-8:]} | {part.get('condition')} | "
+            f"{part.get('pre_specialty')} | {part.get('pre_ai_drafting_familiarity')} | {part.get('completed_flag')} |"
         )
 
         print("\n## 3. sessions.csv\n")
@@ -290,28 +289,27 @@ async def run() -> None:
             f"{one_cp.get('orderIndex')} | {one_cp.get('durationMs')} |"
         )
 
-        print("\n## 5. actions.csv（正式第 1 题：决策 + clientStats）\n")
-        cs = first_formal.get("clientStatsJson") or ""
+        print("\n## 5. actions.csv（正式第 1 题：决策 + client_stats）\n")
+        cs = first_formal.get("client_stats") or ""
         cs_obj = json.loads(cs) if cs else {}
-        im = cs_obj.get("interactionMetrics") or {}
-        print("| selectedAction | editDistance | goldActionMatch | interactionMetrics（摘要） |")
+        print("| selected_action | edit_distance | gold_action_match | client_stats（摘要） |")
         print("| --- | --- | --- | --- |")
-        im_short = json.dumps(im, ensure_ascii=False)[:120]
+        im_short = json.dumps(cs_obj, ensure_ascii=False)[:120]
         print(
-            f"| {first_formal.get('selectedAction')} | {first_formal.get('editDistance')} | "
-            f"{first_formal.get('goldActionMatch')} | {im_short}… |"
+            f"| {first_formal.get('selected_action')} | {first_formal.get('edit_distance')} | "
+            f"{first_formal.get('gold_action_match')} | {im_short}… |"
         )
 
         print("\n## 6. case_surveys.csv（与上同一 presentation 对应一行）\n")
         csur = next(
-            (x for x in surveys if x.get("caseId") == order[0]),
+            (x for x in surveys if x.get("case_id") == order[0]),
             surveys[0],
         )
-        print("| caseId | caseDecisionConfidence | caseDraftHelpfulness |")
+        print("| case_id | case_decision_confidence | case_draft_helpfulness |")
         print("| --- | --- | --- |")
         print(
-            f"| {csur.get('caseId')} | {csur.get('caseDecisionConfidence')} | "
-            f"{csur.get('caseDraftHelpfulness')} |"
+            f"| {csur.get('case_id')} | {csur.get('case_decision_confidence')} | "
+            f"{csur.get('case_draft_helpfulness')} |"
         )
 
         print("\n## 7. post_surveys.csv\n")

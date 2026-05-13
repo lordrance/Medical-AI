@@ -23,20 +23,16 @@ class PostSurveyIn(BaseModel):
     payload: dict
 
 
-def _str(a: dict, *keys: str) -> str | None:
-    for key in keys:
-        v = a.get(key)
-        if isinstance(v, str) and v.strip():
-            return v.strip()
+def _str(a: dict, key: str) -> str | None:
+    v = a.get(key)
+    if isinstance(v, str) and v.strip():
+        return v.strip()
     return None
 
 
-def _int(a: dict, *keys: str) -> int | None:
-    for key in keys:
-        v = a.get(key)
-        if isinstance(v, int):
-            return v
-    return None
+def _int(a: dict, key: str) -> int | None:
+    v = a.get(key)
+    return v if isinstance(v, int) else None
 
 
 @router.post("/api/pre-survey")
@@ -52,15 +48,11 @@ async def submit_pre_survey(
 
     a = body.answers
 
-    participant.specialty = _str(a, "pre_specialty", "specialty")
-    participant.training_level = _str(a, "pre_training_level", "training_level")
-    participant.years_practice = _int(a, "pre_years_post_residency", "years_practice")
-    participant.weekly_message_volume = _str(
-        a, "pre_weekly_msg_volume", "weekly_message_volume"
-    )
-    participant.ai_familiarity = _int(
-        a, "pre_ai_drafting_familiarity", "ai_familiarity"
-    )
+    participant.pre_specialty = _str(a, "pre_specialty")
+    participant.pre_training_level = _str(a, "pre_training_level")
+    participant.pre_years_post_residency = _int(a, "pre_years_post_residency")
+    participant.pre_weekly_msg_volume = _str(a, "pre_weekly_msg_volume")
+    participant.pre_ai_drafting_familiarity = _int(a, "pre_ai_drafting_familiarity")
 
     db.add(
         UiEvent(

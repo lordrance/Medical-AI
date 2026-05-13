@@ -163,17 +163,17 @@ async def _load_table(table: str, db: AsyncSession) -> Any:
         rows = (await db.execute(select(Participant))).scalars().all()
         return [
             {
-                "participantId": r.id,
+                "participant_id": r.id,
                 "condition": r.condition,
-                "orderTemplateId": r.order_template_id,
-                "preSpecialty": r.specialty,
-                "preTrainingLevel": r.training_level,
-                "preYearsPostResidency": r.years_practice,
-                "preWeeklyMsgVolume": r.weekly_message_volume,
-                "preAiDraftingFamiliarity": r.ai_familiarity,
-                "startedAt": r.started_at.isoformat() if r.started_at else None,
-                "completedAt": r.completed_at.isoformat() if r.completed_at else None,
-                "completedFlag": r.completed_flag,
+                "order_template_id": r.order_template_id,
+                "pre_specialty": r.pre_specialty,
+                "pre_training_level": r.pre_training_level,
+                "pre_years_post_residency": r.pre_years_post_residency,
+                "pre_weekly_msg_volume": r.pre_weekly_msg_volume,
+                "pre_ai_drafting_familiarity": r.pre_ai_drafting_familiarity,
+                "started_at": r.started_at.isoformat() if r.started_at else None,
+                "completed_at": r.completed_at.isoformat() if r.completed_at else None,
+                "completed_flag": r.completed_flag,
             }
             for r in rows
         ]
@@ -235,32 +235,37 @@ async def _load_table(table: str, db: AsyncSession) -> Any:
             )
             out.append(
                 {
-                    "actionId": r.id,
-                    "casePresentationId": r.case_presentation_id,
-                    "sessionId": p.session_id if p else None,
-                    "participantId": sess.participant_id if sess else None,
-                    "caseId": p.case_id if p else None,
-                    "orderIndex": p.order_index if p else None,
-                    "selectedAction": r.selected_action,
-                    "sendAsIsFlag": r.send_as_is_flag,
-                    "editFlag": r.edit_flag,
-                    "discardFlag": r.discard_flag,
-                    "escalateFlag": r.escalate_flag,
-                    "escalateSubtype": r.escalate_subtype,
-                    "escalateReason": r.escalate_reason,
-                    "actionReasonCode": r.action_reason_code,
-                    "actionReasonText": r.action_reason_text,
-                    "finalReplyText": r.final_reply_text,
-                    "finalReplyCharCount": r.final_reply_char_count,
-                    "editDistance": r.edit_distance,
-                    "goldAction": gold,
-                    "goldActionMatch": match,
-                    "clientStatsJson": (
+                    "action_id": r.id,
+                    "case_presentation_id": r.case_presentation_id,
+                    "session_id": p.session_id if p else None,
+                    "participant_id": sess.participant_id if sess else None,
+                    "case_id": p.case_id if p else None,
+                    "order_index": p.order_index if p else None,
+                    "selected_action": r.selected_action,
+                    "case_action_choice": r.case_action_choice,
+                    "log_final_action": r.log_final_action,
+                    "case_action_reason": (
+                        json.dumps(r.case_action_reason, ensure_ascii=False)
+                        if r.case_action_reason is not None
+                        else None
+                    ),
+                    "send_as_is_flag": r.send_as_is_flag,
+                    "edit_flag": r.edit_flag,
+                    "discard_flag": r.discard_flag,
+                    "escalate_flag": r.escalate_flag,
+                    "escalate_subtype": r.escalate_subtype,
+                    "escalate_reason": r.escalate_reason,
+                    "final_reply_text": r.final_reply_text,
+                    "final_reply_char_count": r.final_reply_char_count,
+                    "edit_distance": r.edit_distance,
+                    "gold_action": gold,
+                    "gold_action_match": match,
+                    "client_stats": (
                         json.dumps(r.client_stats, ensure_ascii=False)
                         if r.client_stats is not None
                         else None
                     ),
-                    "serverReceivedAt": (
+                    "server_received_at": (
                         r.server_received_at.isoformat() if r.server_received_at else None
                     ),
                 }
@@ -276,18 +281,18 @@ async def _load_table(table: str, db: AsyncSession) -> Any:
         rows = (await db.execute(stmt)).scalars().all()
         return [
             {
-                "caseSurveyId": r.id,
-                "casePresentationId": r.case_presentation_id,
-                "sessionId": r.presentation.session_id if r.presentation else None,
-                "participantId": (
+                "case_survey_id": r.id,
+                "case_presentation_id": r.case_presentation_id,
+                "session_id": r.presentation.session_id if r.presentation else None,
+                "participant_id": (
                     r.presentation.session.participant_id
                     if r.presentation and r.presentation.session
                     else None
                 ),
-                "caseId": r.presentation.case_id if r.presentation else None,
-                "caseDecisionConfidence": r.case_decision_confidence,
-                "caseDraftHelpfulness": r.case_draft_helpfulness,
-                "serverReceivedAt": (
+                "case_id": r.presentation.case_id if r.presentation else None,
+                "case_decision_confidence": r.case_decision_confidence,
+                "case_draft_helpfulness": r.case_draft_helpfulness,
+                "server_received_at": (
                     r.server_received_at.isoformat() if r.server_received_at else None
                 ),
             }

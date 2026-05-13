@@ -25,6 +25,14 @@ ACTION_LABEL_ZH: dict[str, str] = {
     "escalate": "升级处理",
 }
 
+# 问卷 7.0：`log_final_action` 类别取值（与 PDF「1=直接发送…」表格用语一致；UI 仍可用「原样发送」）
+LOG_FINAL_ACTION_PDF: dict[str, str] = {
+    "send_as_is": "直接发送",
+    "edit_then_send": "编辑后发送",
+    "discard_and_rewrite": "弃用并重写",
+    "escalate": "升级处理",
+}
+
 
 class EscalateSubtype(str, Enum):
     urgent_evaluation = "urgent_evaluation"

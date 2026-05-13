@@ -83,11 +83,11 @@ class Participant(Base):
         ForeignKey("order_templates.id"), nullable=False
     )
 
-    specialty: Mapped[str | None] = mapped_column(String(64), nullable=True)
-    training_level: Mapped[str | None] = mapped_column(String(64), nullable=True)
-    years_practice: Mapped[int | None] = mapped_column(Integer, nullable=True)
-    weekly_message_volume: Mapped[str | None] = mapped_column(String(32), nullable=True)
-    ai_familiarity: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    pre_specialty: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    pre_training_level: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    pre_years_post_residency: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    pre_weekly_msg_volume: Mapped[str | None] = mapped_column(String(32), nullable=True)
+    pre_ai_drafting_familiarity: Mapped[int | None] = mapped_column(Integer, nullable=True)
 
     started_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=utcnow, nullable=False
@@ -172,8 +172,9 @@ class Action(Base):
     escalate_subtype: Mapped[str | None] = mapped_column(String(64), nullable=True)
     escalate_reason: Mapped[str | None] = mapped_column(Text, nullable=True)
 
-    action_reason_code: Mapped[str | None] = mapped_column(String(64), nullable=True)
-    action_reason_text: Mapped[str | None] = mapped_column(Text, nullable=True)
+    case_action_choice: Mapped[int] = mapped_column(Integer, nullable=False)
+    log_final_action: Mapped[str] = mapped_column(String(32), nullable=False)
+    case_action_reason: Mapped[dict[str, Any] | None] = mapped_column(JSON, nullable=True)
 
     final_reply_text: Mapped[str] = mapped_column(Text, nullable=False, default="")
     final_reply_char_count: Mapped[int] = mapped_column(Integer, default=0)

@@ -166,8 +166,8 @@ async def llm_participant_summary(
             "meanDurationMs": 0,
             "meanEditDistance": 0,
         }
-    target["specialty"] = pt.specialty
-    target["trainingLevel"] = pt.training_level
+    target["pre_specialty"] = pt.pre_specialty
+    target["pre_training_level"] = pt.pre_training_level
 
     provider = get_provider()
     system, user_tpl = load_prompt("participant_summary")

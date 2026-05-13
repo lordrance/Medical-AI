@@ -410,10 +410,10 @@ async def test_admin_export_csv_actions(client: AsyncClient, admin_token: str) -
     )
     assert r.status_code == 200
     text = r.text
-    assert "actionId" in text and "finalReplyText" in text
+    assert "action_id" in text and "final_reply_text" in text
     assert "已修改的中文回复" in text
-    assert "editDistance" in text
-    assert "goldActionMatch" in text
+    assert "edit_distance" in text
+    assert "gold_action_match" in text
 
 
 @pytest.mark.asyncio
