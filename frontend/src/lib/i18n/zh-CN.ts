@@ -39,7 +39,7 @@ export const zh = {
   },
   practice: {
     banner:
-      "练习案例 — 让您熟悉界面布局、四种处理动作以及案例后的三道小题。本案例不计入主分析。",
+      "练习案例 — 让您熟悉界面布局、四种处理动作以及案例后的简短评分。本案例不计入主分析。",
   },
   caseUI: {
     progress: (i: number, n: number) => `案例 ${i} / ${n}`,
@@ -72,8 +72,18 @@ export const zh = {
     saving: "保存中…",
     pickAction: "请先选择一种处理方式",
     fillReply: "请填写最终回复",
-    quickHeading: "请回答以下三道小题",
+    actionReasonHeading: "您作出这一选择的主要原因是？",
+    actionReasonOtherPlaceholder: "请简要说明（选择「其他原因」时必填）",
+    actionReasonRequired: "请选择主要原因；若选「其他原因」请填写说明。",
+    quickHeading: "请说明主要原因并完成以下两道评分",
     quickContinue: "继续下一案例",
+  },
+  actionReason: {
+    safety_risk: "安全风险或患者安全顾虑",
+    insufficient_info: "信息不足，无法据此回复",
+    wording_issue: "措辞或语气需要调整",
+    basically_ok: "整体基本可用，仅需少量修改",
+    other: "其他原因",
   },
   actions: {
     send_as_is: { label: "原样发送", hint: "不修改 AI 草稿，原样发送给患者" },

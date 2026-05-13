@@ -85,7 +85,8 @@ async def run() -> None:
                 "orderIndex": 0,
                 "selectedAction": "send_as_is",
                 "finalReplyText": draft,
-                "quickSurvey": {"item1": 4, "item2": 4, "item3": 4},
+                "quickSurvey": {"caseDecisionConfidence": 4, "caseDraftHelpfulness": 4},
+                "caseActionReasonCode": "basically_ok",
                 "timing": {
                     "startedAt": now - 8000,
                     "endedAt": now,

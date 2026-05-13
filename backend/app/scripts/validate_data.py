@@ -93,8 +93,8 @@ def main() -> int:
     if not post.get("blocks"):
         errors.append("post_survey.blocks 为空")
     quick = load_case_quick_survey()
-    if not quick.get("items") or len(quick["items"]) != 3:
-        errors.append("case_quick_survey 应有 3 个题目")
+    if not quick.get("items") or len(quick["items"]) != 2:
+        errors.append("case_quick_survey 应有 2 个题目")
 
     if not errors:
         print("✅ 数据校验通过")

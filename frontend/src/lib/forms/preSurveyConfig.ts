@@ -21,13 +21,13 @@ export interface SurveyConfig {
 
 export const preSurveyConfig: SurveyConfig = {
   title: "前测问卷",
-  description: "在开始审核案例之前，请回答以下背景问题。约 3—4 分钟。",
+  description: "在开始审核案例之前，请回答以下背景问题（约 2—3 分钟）。",
   items: [
     {
-      id: "specialty",
+      id: "pre_specialty",
       type: "select",
       required: true,
-      label: "您的主要科室 / 专科",
+      label: "您的主要科室 / 专科是什么？",
       options: [
         "心血管内科",
         "呼吸内科",
@@ -60,10 +60,10 @@ export const preSurveyConfig: SurveyConfig = {
       ],
     },
     {
-      id: "training_level",
+      id: "pre_training_level",
       type: "select",
       required: true,
-      label: "您当前的培训层级",
+      label: "您当前的培训层级是什么？",
       options: [
         "医学生（本科 / 硕士 / 博士）",
         "规培住院医师（一阶段）",
@@ -74,52 +74,32 @@ export const preSurveyConfig: SurveyConfig = {
       ],
     },
     {
-      id: "years_practice",
+      id: "pre_years_post_residency",
       type: "number",
       required: true,
-      label: "完成培训后从医的年数（如尚在培训中请填 0）",
+      label: "您完成住院医培训后有几年工作年资？（如果仍在培训中请填 0）",
       min: 0,
       max: 60,
     },
     {
-      id: "weekly_message_volume",
-      type: "select",
-      required: true,
-      label: "您平均每周需要处理的线上问诊或患者消息数量",
-      options: ["0", "1—10 条", "11—25 条", "26—50 条", "51—100 条", "100 条以上"],
-    },
-    {
-      id: "prior_ai_use",
+      id: "pre_weekly_msg_volume",
       type: "select",
       required: true,
       label:
-        "您此前在临床工作中是否使用过 AI 辅助工具（如生成式 AI 起草回复 / 撰写病历）",
-      options: ["从未使用", "偶尔使用", "每月使用", "每周使用", "每天使用"],
+        "您平均每周需要处理多少条线上患者的消息？同一位患者连续发送多条消息时，请按一条计算。",
+      options: ["0", "1—10 条", "11—25 条", "26—50 条", "51—100 条", "100 条以上"],
     },
     {
-      id: "ai_brands_used",
-      type: "multi_select",
-      required: false,
-      label: "您接触或使用过哪些 AI 工具？（可多选）",
-      options: [
-        "DeepSeek",
-        "文心一言",
-        "通义千问",
-        "智谱清言",
-        "讯飞星火",
-        "Kimi",
-        "豆包",
-        "ChatGPT",
-        "其他海外模型",
-        "未接触过",
-      ],
-    },
-    {
-      id: "ai_familiarity",
+      id: "pre_ai_drafting_familiarity",
       type: "likert",
       required: true,
-      label: "您对生成式 AI 起草工具的工作原理熟悉程度如何？",
-      scale: { min: 1, max: 5, minLabel: "完全不熟悉", maxLabel: "非常熟悉" },
+      label: "您对生成式 AI 起草工具的熟悉程度如何？",
+      scale: {
+        min: 1,
+        max: 5,
+        minLabel: "完全不熟悉，从未使用过",
+        maxLabel: "非常熟悉且有较多使用经验",
+      },
     },
   ],
 };

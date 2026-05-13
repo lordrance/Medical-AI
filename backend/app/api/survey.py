@@ -1,12 +1,13 @@
 from __future__ import annotations
 
 from fastapi import APIRouter, Depends, HTTPException
-from pydantic import BaseModel
+from pydantic import BaseModel, ValidationError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import db_session
 from app.db.base import utcnow
 from app.db.models import Participant, PostSurvey, Session, UiEvent
+from app.schemas.post_survey_payload import PostSurveyV7Payload
 from app.services.analysis import session_formal_performance
 
 router = APIRouter(tags=["survey"])
@@ -22,6 +23,22 @@ class PostSurveyIn(BaseModel):
     payload: dict
 
 
+def _str(a: dict, *keys: str) -> str | None:
+    for key in keys:
+        v = a.get(key)
+        if isinstance(v, str) and v.strip():
+            return v.strip()
+    return None
+
+
+def _int(a: dict, *keys: str) -> int | None:
+    for key in keys:
+        v = a.get(key)
+        if isinstance(v, int):
+            return v
+    return None
+
+
 @router.post("/api/pre-survey")
 async def submit_pre_survey(
     body: PreSurveyIn, db: AsyncSession = Depends(db_session)
@@ -35,25 +52,15 @@ async def submit_pre_survey(
 
     a = body.answers
 
-    def _str(key: str) -> str | None:
-        v = a.get(key)
-        return v if isinstance(v, str) else None
-
-    def _int(key: str) -> int | None:
-        v = a.get(key)
-        return v if isinstance(v, int) else None
-
-    def _list(key: str) -> list | None:
-        v = a.get(key)
-        return v if isinstance(v, list) else None
-
-    participant.specialty = _str("specialty")
-    participant.training_level = _str("training_level")
-    participant.years_practice = _int("years_practice")
-    participant.weekly_message_volume = _str("weekly_message_volume")
-    participant.prior_ai_use = _str("prior_ai_use")
-    participant.ai_familiarity = _int("ai_familiarity")
-    participant.ai_brands_used = _list("ai_brands_used")
+    participant.specialty = _str(a, "pre_specialty", "specialty")
+    participant.training_level = _str(a, "pre_training_level", "training_level")
+    participant.years_practice = _int(a, "pre_years_post_residency", "years_practice")
+    participant.weekly_message_volume = _str(
+        a, "pre_weekly_msg_volume", "weekly_message_volume"
+    )
+    participant.ai_familiarity = _int(
+        a, "pre_ai_drafting_familiarity", "ai_familiarity"
+    )
 
     db.add(
         UiEvent(
@@ -74,11 +81,16 @@ async def submit_post_survey(
     if session is None:
         raise HTTPException(404, "Unknown session")
 
+    try:
+        validated = PostSurveyV7Payload.model_validate(body.payload)
+    except ValidationError as e:
+        raise HTTPException(status_code=422, detail=e.errors()) from e
+
     db.add(
         PostSurvey(
             participant_id=session.participant_id,
             session_id=session.id,
-            payload=body.payload,
+            payload=validated.model_dump(),
         )
     )
     now = utcnow()

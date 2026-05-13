@@ -17,11 +17,12 @@ import { ProgressBar } from "@/components/ProgressBar";
 import { cn } from "@/lib/cn";
 import { zh } from "@/lib/i18n/zh-CN";
 import type {
+  ActionReasonCode,
   CasePayload,
   ClientStats,
   Condition,
   InteractionMetrics,
-  QuickSurvey,
+  CaseEmbeddedSurvey,
   SelectedAction,
 } from "@/lib/api/types";
 
@@ -32,6 +33,14 @@ const ACTION_ORDER: SelectedAction[] = [
   "escalate",
 ];
 
+const ACTION_REASON_ORDER: ActionReasonCode[] = [
+  "safety_risk",
+  "insufficient_info",
+  "wording_issue",
+  "basically_ok",
+  "other",
+];
+
 const ACTION_ICON: Record<SelectedAction, React.ComponentType<{ className?: string }>> = {
   send_as_is: Send,
   edit_then_send: Edit3,
@@ -40,9 +49,8 @@ const ACTION_ICON: Record<SelectedAction, React.ComponentType<{ className?: stri
 };
 
 const QUICK_ITEMS = [
-  { id: "safe_to_send", text: "我认为这条最终回复现在可以安全地发送给患者。" },
-  { id: "confidence_in_judgment", text: "我对自己刚才作出的判断有信心。" },
-  { id: "ai_draft_helpful", text: "AI 起草的内容在本案例中是有帮助的。" },
+  { id: "case_decision_confidence", text: "我对自己刚才作出的判断有信心。" },
+  { id: "case_draft_helpfulness", text: "AI 起草的内容在本案例中是有帮助的。" },
 ];
 
 export interface CasePageProps {
@@ -59,7 +67,9 @@ export interface CasePageProps {
     finalReplyText: string;
     escalateSubtype?: string;
     escalateReason?: string;
-    quickSurvey: QuickSurvey;
+    caseActionReasonCode: ActionReasonCode;
+    caseActionReasonText?: string;
+    quickSurvey: CaseEmbeddedSurvey;
     timing: { startedAt: number; endedAt: number; durationMs: number };
     clientStats: ClientStats;
   }) => Promise<void>;
@@ -94,11 +104,18 @@ export function CasePage(props: CasePageProps) {
   const focusRef = useRef(0);
   const hiddenStartRef = useRef<number | null>(null);
   const visibilityHiddenRef = useRef(0);
+  const draftScrollRef = useRef<HTMLDivElement | null>(null);
+  const draftScrollEventsRef = useRef(0);
+  const draftMaxScrollRatioRef = useRef(0);
+  const draftFocusStartedAtRef = useRef<number | null>(null);
+  const draftDwellMsRef = useRef(0);
 
   const [selected, setSelected] = useState<SelectedAction | null>(null);
   const [editorText, setEditorText] = useState("");
   const [escalateSubtype, setEscalateSubtype] = useState("");
   const [escalateReason, setEscalateReason] = useState("");
+  const [actionReasonCode, setActionReasonCode] = useState<ActionReasonCode | "">("");
+  const [actionReasonText, setActionReasonText] = useState("");
   const [showQuick, setShowQuick] = useState(false);
   const [quick, setQuick] = useState<Record<string, number>>({});
   const [submitting, setSubmitting] = useState(false);
@@ -166,6 +183,8 @@ export function CasePage(props: CasePageProps) {
     setEditorText("");
     setEscalateSubtype("");
     setEscalateReason("");
+    setActionReasonCode("");
+    setActionReasonText("");
     setShowQuick(false);
     setQuick({});
     setValidationMsg(null);
@@ -178,6 +197,10 @@ export function CasePage(props: CasePageProps) {
     setChartExpanded(false);
     setGuardrailExpanded(false);
     setSendAsIsAck(false);
+    draftScrollEventsRef.current = 0;
+    draftMaxScrollRatioRef.current = 0;
+    draftFocusStartedAtRef.current = null;
+    draftDwellMsRef.current = 0;
     onLogEvent?.("case_view_start", { caseId: casePayload.id });
   }, [casePayload.id, casePayload.guardrail]);
 
@@ -256,7 +279,12 @@ export function CasePage(props: CasePageProps) {
     setShowQuick(true);
   }
 
-  const allQuickAnswered = QUICK_ITEMS.every((q) => typeof quick[q.id] === "number");
+  const allQuickAnswered = useMemo(() => {
+    const likertOk = QUICK_ITEMS.every((q) => typeof quick[q.id] === "number");
+    if (!actionReasonCode) return false;
+    if (actionReasonCode === "other" && !actionReasonText.trim()) return false;
+    return likertOk;
+  }, [quick, actionReasonCode, actionReasonText]);
 
   async function submitCase() {
     if (!allQuickAnswered || !selected) return;
@@ -291,6 +319,9 @@ export function CasePage(props: CasePageProps) {
       pageFocusCount: focusRef.current,
       visibilityHiddenMs: visibilityHiddenRef.current,
       interactionMetrics,
+      draftScrollEventCount: draftScrollEventsRef.current,
+      draftScrollMaxDepthRatio: Number(draftMaxScrollRatioRef.current.toFixed(4)),
+      draftSectionDwellMs: draftDwellMsRef.current,
     };
     try {
       await onSubmit({
@@ -300,10 +331,12 @@ export function CasePage(props: CasePageProps) {
           selected === "escalate" ? escalateSubtype || undefined : undefined,
         escalateReason:
           selected === "escalate" ? escalateReason.trim() : undefined,
+        caseActionReasonCode: actionReasonCode as ActionReasonCode,
+        caseActionReasonText:
+          actionReasonCode === "other" ? actionReasonText.trim() : undefined,
         quickSurvey: {
-          item1: quick["safe_to_send"],
-          item2: quick["confidence_in_judgment"],
-          item3: quick["ai_draft_helpful"],
+          caseDecisionConfidence: quick["case_decision_confidence"]!,
+          caseDraftHelpfulness: quick["case_draft_helpfulness"]!,
         },
         timing: { startedAt: startedAtRef.current, endedAt, durationMs },
         clientStats,
@@ -422,11 +455,40 @@ export function CasePage(props: CasePageProps) {
               tabIndex={0}
               role="region"
               aria-label={zh.caseUI.aiDraft}
-              onFocus={() => noteSectionFocus("draft")}
+              onFocus={() => {
+                noteSectionFocus("draft");
+                if (draftFocusStartedAtRef.current == null) {
+                  draftFocusStartedAtRef.current = Date.now();
+                }
+              }}
+              onBlur={() => {
+                if (draftFocusStartedAtRef.current != null) {
+                  draftDwellMsRef.current += Date.now() - draftFocusStartedAtRef.current;
+                  draftFocusStartedAtRef.current = null;
+                }
+              }}
             >
-              <p className="whitespace-pre-line leading-relaxed">
-                {casePayload.aiDraft}
-              </p>
+              <div
+                ref={draftScrollRef}
+                className="max-h-72 overflow-y-auto pr-1"
+                onScroll={() => {
+                  const el = draftScrollRef.current;
+                  if (!el) return;
+                  draftScrollEventsRef.current += 1;
+                  const maxScroll = el.scrollHeight - el.clientHeight;
+                  if (maxScroll > 0) {
+                    const ratio = el.scrollTop / maxScroll;
+                    draftMaxScrollRatioRef.current = Math.max(
+                      draftMaxScrollRatioRef.current,
+                      ratio,
+                    );
+                  }
+                }}
+              >
+                <p className="whitespace-pre-line leading-relaxed">
+                  {casePayload.aiDraft}
+                </p>
+              </div>
             </div>
             {selected === "send_as_is" && (
               <label className="mt-4 flex cursor-pointer items-start gap-2 text-sm text-foreground/90">
@@ -572,7 +634,37 @@ export function CasePage(props: CasePageProps) {
       {showQuick && (
         <div className="card card-section animate-slide-up">
           <h3 className="text-lg font-semibold">{zh.caseUI.quickHeading}</h3>
-          <div className="mt-5 space-y-5">
+          <div className="mt-4 space-y-3">
+            <p className="text-sm font-medium text-foreground/90">
+              {zh.caseUI.actionReasonHeading}
+            </p>
+            <div className="grid gap-2">
+              {ACTION_REASON_ORDER.map((code) => (
+                <label
+                  key={code}
+                  className="flex cursor-pointer items-start gap-2 rounded-md border border-border/60 px-3 py-2 text-sm hover:bg-muted/40"
+                >
+                  <input
+                    type="radio"
+                    name="action_reason"
+                    className="mt-1"
+                    checked={actionReasonCode === code}
+                    onChange={() => setActionReasonCode(code)}
+                  />
+                  <span>{zh.actionReason[code]}</span>
+                </label>
+              ))}
+            </div>
+            {actionReasonCode === "other" && (
+              <textarea
+                className="textarea min-h-[72px]"
+                placeholder={zh.caseUI.actionReasonOtherPlaceholder}
+                value={actionReasonText}
+                onChange={(e) => setActionReasonText(e.target.value)}
+              />
+            )}
+          </div>
+          <div className="mt-7 space-y-5">
             {QUICK_ITEMS.map((q) => (
               <div key={q.id}>
                 <p className="mb-2 text-sm">{q.text}</p>

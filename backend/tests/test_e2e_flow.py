@@ -5,7 +5,15 @@ import time
 import pytest
 from httpx import AsyncClient
 
+from app.schemas.post_survey_payload import post_survey_v7_all_threes
 from app.scripts.seed import upsert_cases, upsert_order_templates
+
+
+def _action_v7_extras() -> dict:
+    return {
+        "quickSurvey": {"caseDecisionConfidence": 4, "caseDraftHelpfulness": 4},
+        "caseActionReasonCode": "basically_ok",
+    }
 
 
 @pytest.fixture(autouse=True)
@@ -86,7 +94,7 @@ async def test_case_open_reuses_row_then_action_attaches(client: AsyncClient) ->
             "orderIndex": 0,
             "selectedAction": "send_as_is",
             "finalReplyText": draft,
-            "quickSurvey": {"item1": 4, "item2": 4, "item3": 4},
+            **_action_v7_extras(),
             "timing": {"startedAt": now - 1000, "endedAt": now, "durationMs": 1000},
             "clientStats": {
                 "interactionMetrics": {
@@ -131,13 +139,11 @@ async def test_full_participant_flow(client: AsyncClient) -> None:
         json={
             "sessionId": sid,
             "answers": {
-                "specialty": "心血管内科",
-                "training_level": "主治医师",
-                "years_practice": 6,
-                "weekly_message_volume": "11—25 条",
-                "prior_ai_use": "每周使用",
-                "ai_familiarity": 5,
-                "ai_brands_used": ["DeepSeek", "文心一言"],
+                "pre_specialty": "心血管内科",
+                "pre_training_level": "主治医师",
+                "pre_years_post_residency": 6,
+                "pre_weekly_msg_volume": "11—25 条",
+                "pre_ai_drafting_familiarity": 5,
             },
         },
     )
@@ -174,7 +180,7 @@ async def test_full_participant_flow(client: AsyncClient) -> None:
             "isPractice": False,
             "selectedAction": sel,
             "finalReplyText": final_txt,
-            "quickSurvey": {"item1": 4, "item2": 4, "item3": 4},
+            **_action_v7_extras(),
             "timing": {
                 "startedAt": now - 5000,
                 "endedAt": now,
@@ -208,15 +214,7 @@ async def test_full_participant_flow(client: AsyncClient) -> None:
         "/api/post-survey",
         json={
             "sessionId": sid,
-            "payload": {
-                "trust_1": 5, "trust_2": 4, "trust_3": 5,
-                "transparency_1": 4, "transparency_2": 4, "transparency_3": 4,
-                "workflow_1": 5, "workflow_2": 5, "workflow_3": 3,
-                "accountability_1": 5, "accountability_2": 4, "accountability_3": 5,
-                "overreliance_1": 5, "overreliance_2": 4, "overreliance_3": 5,
-                "open_1": "希望增加风险提示折叠展开记录",
-                "open_2": "界面流畅",
-            },
+            "payload": post_survey_v7_all_threes(),
         },
     )
     assert pr.status_code == 200
@@ -241,7 +239,7 @@ async def test_submit_same_case_twice_is_idempotent(client: AsyncClient) -> None
         "orderIndex": 0,
         "selectedAction": "send_as_is",
         "finalReplyText": "same",
-        "quickSurvey": {"item1": 3, "item2": 3, "item3": 3},
+        **_action_v7_extras(),
         "timing": {"startedAt": now - 5000, "endedAt": now, "durationMs": 5000},
     }
     r1 = await client.post("/api/action", json=common)
@@ -263,7 +261,7 @@ async def test_escalate_requires_reason(client: AsyncClient) -> None:
             "selectedAction": "escalate",
             "finalReplyText": "[escalated]",
             "escalateSubtype": "urgent_evaluation",
-            "quickSurvey": {"item1": 3, "item2": 3, "item3": 3},
+            **_action_v7_extras(),
             "timing": {"startedAt": now - 1000, "endedAt": now, "durationMs": 1000},
         },
     )
@@ -282,7 +280,8 @@ async def test_quick_survey_max_five(client: AsyncClient) -> None:
             "orderIndex": 0,
             "selectedAction": "send_as_is",
             "finalReplyText": "x",
-            "quickSurvey": {"item1": 6, "item2": 3, "item3": 3},
+            "quickSurvey": {"caseDecisionConfidence": 6, "caseDraftHelpfulness": 3},
+            "caseActionReasonCode": "basically_ok",
             "timing": {"startedAt": now - 1000, "endedAt": now, "durationMs": 1000},
         },
     )
@@ -301,7 +300,7 @@ async def test_action_validates_action_enum(client: AsyncClient) -> None:
             "orderIndex": 0,
             "selectedAction": "invalid_action",
             "finalReplyText": "x",
-            "quickSurvey": {"item1": 5, "item2": 5, "item3": 5},
+            **_action_v7_extras(),
             "timing": {"startedAt": now - 1000, "endedAt": now, "durationMs": 1000},
         },
     )
@@ -345,7 +344,7 @@ async def test_admin_summary_with_data(client: AsyncClient, admin_token: str) ->
     # 2 participants always pick gold; 1 always picks send_as_is
     pickers = [lambda c: gold_by_id[c], lambda c: gold_by_id[c], lambda _c: "send_as_is"]
 
-    for s, picker in zip(sessions, pickers):
+    for s, picker in zip(sessions, pickers, strict=True):
         for i, cid in enumerate(s["caseOrder"]):
             sel = picker(cid)
             payload: dict = {
@@ -354,7 +353,7 @@ async def test_admin_summary_with_data(client: AsyncClient, admin_token: str) ->
                 "orderIndex": i,
                 "selectedAction": sel,
                 "finalReplyText": "test",
-                "quickSurvey": {"item1": 4, "item2": 4, "item3": 4},
+                **_action_v7_extras(),
                 "timing": {"startedAt": now - 5000, "endedAt": now, "durationMs": 5000},
             }
             if sel == "escalate":
@@ -364,7 +363,10 @@ async def test_admin_summary_with_data(client: AsyncClient, admin_token: str) ->
             assert ar.status_code == 200, ar.text
         await client.post(
             "/api/post-survey",
-            json={"sessionId": s["sessionId"], "payload": {"trust_1": 5}},
+            json={
+                "sessionId": s["sessionId"],
+                "payload": post_survey_v7_all_threes(),
+            },
         )
 
     rs = await client.get(
@@ -396,7 +398,7 @@ async def test_admin_export_csv_actions(client: AsyncClient, admin_token: str) -
             "isPractice": True,
             "selectedAction": "edit_then_send",
             "finalReplyText": "已修改的中文回复",
-            "quickSurvey": {"item1": 4, "item2": 4, "item3": 4},
+            **_action_v7_extras(),
             "timing": {"startedAt": now - 3000, "endedAt": now, "durationMs": 3000},
         },
     )

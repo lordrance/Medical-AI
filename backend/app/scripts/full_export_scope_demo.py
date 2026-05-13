@@ -33,6 +33,7 @@ from app.db.session import get_engine, reset_engine_for_tests
 from app.main import app
 from app.scripts.data_loader import load_cases
 from app.scripts.seed import upsert_cases, upsert_order_templates
+from app.schemas.post_survey_payload import post_survey_v7_all_threes
 
 
 EXPORT_TABLES = [
@@ -77,13 +78,11 @@ async def run() -> None:
             json={
                 "sessionId": sid,
                 "answers": {
-                    "specialty": "测试科室",
-                    "training_level": "主治医师",
-                    "years_practice": 5,
-                    "weekly_message_volume": "11—25 条",
-                    "prior_ai_use": "偶尔",
-                    "ai_familiarity": 4,
-                    "ai_brands_used": ["DemoBot"],
+                    "pre_specialty": "测试科室",
+                    "pre_training_level": "主治医师",
+                    "pre_years_post_residency": 5,
+                    "pre_weekly_msg_volume": "11—25 条",
+                    "pre_ai_drafting_familiarity": 4,
                 },
             },
         )
@@ -156,7 +155,8 @@ async def run() -> None:
                 "isPractice": is_practice,
                 "selectedAction": sel,
                 "finalReplyText": final_txt,
-                "quickSurvey": {"item1": 4, "item2": 3, "item3": 5},
+                "quickSurvey": {"caseDecisionConfidence": 4, "caseDraftHelpfulness": 3},
+                "caseActionReasonCode": "basically_ok",
                 "timing": {
                     "startedAt": now_ms - 4000,
                     "endedAt": now_ms,
@@ -201,10 +201,7 @@ async def run() -> None:
             "/api/post-survey",
             json={
                 "sessionId": sid,
-                "payload": {
-                    "trust_1": 4,
-                    "open_1": "开放式反馈演示",
-                },
+                "payload": post_survey_v7_all_threes(),
             },
         )
         assert post.status_code == 200
@@ -270,11 +267,11 @@ async def run() -> None:
         one_cp = next((c for c in cp if c.get("caseId") == order[0]), cp[0])
 
         print("## 2. participants.csv（当前受试者抽样）\n")
-        print("| participantId | condition | specialty | aiFamiliarity | completedFlag |")
+        print("| participantId | condition | preSpecialty | preAiDraftingFamiliarity | completedFlag |")
         print("| --- | --- | --- | --- | --- |")
         print(
             f"| …{part.get('participantId', '')[-8:]} | {part.get('condition')} | "
-            f"{part.get('specialty')} | {part.get('aiFamiliarity')} | {part.get('completedFlag')} |"
+            f"{part.get('preSpecialty')} | {part.get('preAiDraftingFamiliarity')} | {part.get('completedFlag')} |"
         )
 
         print("\n## 3. sessions.csv\n")
@@ -310,11 +307,11 @@ async def run() -> None:
             (x for x in surveys if x.get("caseId") == order[0]),
             surveys[0],
         )
-        print("| caseId | safeToSend | confidenceInJudgment | aiDraftHelpful |")
-        print("| --- | --- | --- | --- |")
+        print("| caseId | caseDecisionConfidence | caseDraftHelpfulness |")
+        print("| --- | --- | --- |")
         print(
-            f"| {csur.get('caseId')} | {csur.get('safeToSend')} | "
-            f"{csur.get('confidenceInJudgment')} | {csur.get('aiDraftHelpful')} |"
+            f"| {csur.get('caseId')} | {csur.get('caseDecisionConfidence')} | "
+            f"{csur.get('caseDraftHelpfulness')} |"
         )
 
         print("\n## 7. post_surveys.csv\n")

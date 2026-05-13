@@ -87,9 +87,7 @@ class Participant(Base):
     training_level: Mapped[str | None] = mapped_column(String(64), nullable=True)
     years_practice: Mapped[int | None] = mapped_column(Integer, nullable=True)
     weekly_message_volume: Mapped[str | None] = mapped_column(String(32), nullable=True)
-    prior_ai_use: Mapped[str | None] = mapped_column(String(32), nullable=True)
     ai_familiarity: Mapped[int | None] = mapped_column(Integer, nullable=True)
-    ai_brands_used: Mapped[list[str] | None] = mapped_column(JSON, nullable=True)
 
     started_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=utcnow, nullable=False
@@ -174,6 +172,9 @@ class Action(Base):
     escalate_subtype: Mapped[str | None] = mapped_column(String(64), nullable=True)
     escalate_reason: Mapped[str | None] = mapped_column(Text, nullable=True)
 
+    action_reason_code: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    action_reason_text: Mapped[str | None] = mapped_column(Text, nullable=True)
+
     final_reply_text: Mapped[str] = mapped_column(Text, nullable=False, default="")
     final_reply_char_count: Mapped[int] = mapped_column(Integer, default=0)
     edit_distance: Mapped[int | None] = mapped_column(Integer, nullable=True)
@@ -195,9 +196,8 @@ class CaseSurvey(Base):
         ForeignKey("case_presentations.id"), unique=True, nullable=False
     )
 
-    safe_to_send: Mapped[int] = mapped_column(Integer, nullable=False)
-    confidence_in_judgment: Mapped[int] = mapped_column(Integer, nullable=False)
-    ai_draft_helpful: Mapped[int] = mapped_column(Integer, nullable=False)
+    case_decision_confidence: Mapped[int] = mapped_column(Integer, nullable=False)
+    case_draft_helpfulness: Mapped[int] = mapped_column(Integer, nullable=False)
 
     server_received_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=utcnow, nullable=False

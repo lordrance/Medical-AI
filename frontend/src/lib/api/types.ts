@@ -9,6 +9,13 @@ export type SelectedAction =
   | "discard_and_rewrite"
   | "escalate";
 
+export type ActionReasonCode =
+  | "safety_risk"
+  | "insufficient_info"
+  | "wording_issue"
+  | "basically_ok"
+  | "other";
+
 export interface SessionInfo {
   sessionId: string;
   participantId: string;
@@ -38,10 +45,10 @@ export interface CaseResponse {
   case: CasePayload;
 }
 
-export interface QuickSurvey {
-  item1: number;
-  item2: number;
-  item3: number;
+/** 案例末嵌入式量表（问卷 7.0，对应 `case_decision_confidence` / `case_draft_helpfulness`） */
+export interface CaseEmbeddedSurvey {
+  caseDecisionConfidence: number;
+  caseDraftHelpfulness: number;
 }
 
 export interface InteractionMetrics {
@@ -70,6 +77,9 @@ export interface ClientStats {
   pageFocusCount: number;
   visibilityHiddenMs: number;
   interactionMetrics?: InteractionMetrics;
+  draftScrollEventCount?: number;
+  draftScrollMaxDepthRatio?: number;
+  draftSectionDwellMs?: number;
 }
 
 export interface ActionResponse {
