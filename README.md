@@ -60,6 +60,10 @@ cd backend && .venv/bin/python -m app.scripts.full_export_scope_demo
 2. `docker compose up -d --build`
 3. 访问：前端 `http://localhost:3000`，健康检查 `http://localhost:8000/healthz`
 
+## CI（GitHub Actions）
+
+变更 `backend/**` 或该工作流文件时，会触发 **`.github/workflows/backend-ci.yml`**：**同一套 `pytest` 先在临时 SQLite 上跑，再在 PostgreSQL 15 服务容器上跑**（与 `docker-compose` 中的 PG 驱动一致：`postgresql+asyncpg://…`）。
+
 ## 数据库迁移
 
 ```bash

@@ -8,12 +8,16 @@ import pytest
 import pytest_asyncio
 from httpx import ASGITransport, AsyncClient
 
-# Configure isolated temp DB **before** importing the app.
-_tmp_dir = tempfile.mkdtemp(prefix="medai-test-")
-_db_path = os.path.join(_tmp_dir, "test.db")
-os.environ["DATABASE_URL"] = f"sqlite+aiosqlite:///{_db_path}"
-os.environ["ADMIN_TOKEN"] = "test-token"
-os.environ["LLM_PROVIDER"] = "disabled"
+# Configure DB **before** importing the app.
+# - 默认：临时 SQLite（本地 / CI 不连 PG 时）。
+# - CI 或本地若已导出 `DATABASE_URL`（如 postgresql+asyncpg://…），则使用该库（双跑 PG 用）。
+if "DATABASE_URL" not in os.environ:
+    _tmp_dir = tempfile.mkdtemp(prefix="medai-test-")
+    _db_path = os.path.join(_tmp_dir, "test.db")
+    os.environ["DATABASE_URL"] = f"sqlite+aiosqlite:///{_db_path}"
+
+os.environ.setdefault("ADMIN_TOKEN", "test-token")
+os.environ.setdefault("LLM_PROVIDER", "disabled")
 
 from app.core.config import get_settings  # noqa: E402
 from app.db.base import Base  # noqa: E402

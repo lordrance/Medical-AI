@@ -70,6 +70,8 @@ python -m app.scripts.validate_data
 python -m app.scripts.seed
 ```
 
+GitHub Actions（`.github/workflows/backend-ci.yml`）对后端做 **双跑**：同一套 `pytest` 先在 **临时 SQLite** 上执行（含 `ruff check`），再在 **PostgreSQL 15** 服务容器上执行（通过环境变量 `DATABASE_URL=postgresql+asyncpg://…`）。本地若已启动 PostgreSQL，也可导出相同形式的 `DATABASE_URL` 后运行 `pytest` 做手动对照。
+
 演示导出：`python -m app.scripts.showcase_export_demo`、`python -m app.scripts.full_export_scope_demo`。
 
 ## Alembic
