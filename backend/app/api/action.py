@@ -132,6 +132,7 @@ def _merge_log_fields(body: ActionIn, stats: dict[str, Any]) -> dict[str, Any]:
             clicks.get("chart_panel", 0)
             + clicks.get("guardrail_panel", 0)
             + clicks.get("facts_panel", 0)
+            + clicks.get("risk_panel", 0)
         )
         stats["log_scroll_dwell_draft"] = {
             "scrollEventCount": cs.draftScrollEventCount,

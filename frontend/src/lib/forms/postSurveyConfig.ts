@@ -90,7 +90,7 @@ export const postSurveyConfig: PostSurveyConfig = {
     },
     {
       "id": "comm",
-      "title": "D. 医患互动与沟通感知",
+      "title": "D. 医患互动与沟通",
       "items": [
         {
           "id": "post_comm_1",
