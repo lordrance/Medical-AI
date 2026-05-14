@@ -27,13 +27,22 @@ export default function PostSurveyPage() {
     if (!session) router.replace("/consent");
   }, [session, router]);
 
-  const requiredItems = postSurveyConfig.blocks.flatMap((b) =>
+  const requiredLikertItems = postSurveyConfig.blocks.flatMap((b) =>
     b.items.filter((i) => i.type !== "text"),
   );
-  const allAnswered = useMemo(
-    () => requiredItems.every((it) => typeof answers[it.id] === "number"),
-    [answers, requiredItems],
+  const requiredTextItems = postSurveyConfig.blocks.flatMap((b) =>
+    b.items.filter((i) => i.type === "text"),
   );
+  const allAnswered = useMemo(() => {
+    const likertOk = requiredLikertItems.every(
+      (it) => typeof answers[it.id] === "number",
+    );
+    const textOk = requiredTextItems.every((it) => {
+      const v = answers[it.id];
+      return typeof v === "string" && v.trim().length > 0;
+    });
+    return likertOk && textOk;
+  }, [answers, requiredLikertItems, requiredTextItems]);
 
   async function submit() {
     if (!session) return;
@@ -72,9 +81,10 @@ export default function PostSurveyPage() {
             {b.items.map((it) =>
               it.type === "text" ? (
                 <div key={it.id}>
-                  <label className="label">{it.text}</label>
+                  <label className="label whitespace-pre-line">{it.text}</label>
                   <textarea
-                    className="textarea"
+                    className="textarea mt-2 min-h-[140px]"
+                    rows={6}
                     value={(answers[it.id] as string) ?? ""}
                     onChange={(e) =>
                       setAnswers({ ...answers, [it.id]: e.target.value })
