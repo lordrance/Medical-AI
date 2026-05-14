@@ -73,6 +73,7 @@ export const zh = {
     pickAction: "请先选择一种处理方式",
     fillReply: "请填写最终回复",
     actionReasonHeading: "您作出这一选择的主要原因是？",
+    actionReasonOtherHeading: "请填写其他原因说明",
     actionReasonOtherPlaceholder: "请简要说明（选择「其他原因」时必填）",
     actionReasonRequired: "请选择主要原因；若选「其他原因」请填写说明。",
     quickHeading: "请说明主要原因并完成以下两道评分",
@@ -112,6 +113,16 @@ export const zh = {
   postSurvey: {
     submit: "提交问卷",
     saving: "提交中…",
+  },
+  voiceInput: {
+    start: "语音输入",
+    stop: "停止",
+    listening: "正在聆听…",
+    errorGeneric: "语音识别出错，请重试或使用键盘输入。",
+    errorDenied: "麦克风权限被拒绝，请在浏览器设置中允许本站使用麦克风。",
+    errorNoSpeech: "未检测到语音，请靠近麦克风后重试。",
+    errorNetwork: "网络异常，语音识别暂不可用，请稍后重试。",
+    errorStart: "无法启动语音识别，请换用 Chrome / Edge 或检查是否为 HTTPS 页面。",
   },
   completion: {
     title: "感谢您的参与",

@@ -13,6 +13,7 @@ import {
   ChevronUp,
 } from "lucide-react";
 import { Likert } from "@/components/Likert";
+import { VoiceInputButton } from "@/components/VoiceInputButton";
 import { ProgressBar } from "@/components/ProgressBar";
 import { cn } from "@/lib/cn";
 import { zh } from "@/lib/i18n/zh-CN";
@@ -568,7 +569,30 @@ export function CasePage(props: CasePageProps) {
                   </select>
                 </div>
                 <div>
-                  <label className="label">{zh.escalateReason.label}</label>
+                  <div className="mb-2 flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+                    <label className="label flex-1">{zh.escalateReason.label}</label>
+                    <VoiceInputButton
+                      className="shrink-0"
+                      value={escalateReason}
+                      onChange={(next) => {
+                        setEscalateReason(next);
+                      }}
+                      onVoiceActivity={(kind, detail) => {
+                        onLogEvent?.(
+                          kind === "started"
+                            ? "voice_input_started"
+                            : kind === "error"
+                              ? "voice_input_error"
+                              : "voice_input_ended",
+                          {
+                            caseId: casePayload.id,
+                            field: "escalate_reason",
+                            ...(detail?.code ? { code: detail.code } : {}),
+                          },
+                        );
+                      }}
+                    />
+                  </div>
                   <textarea
                     className="textarea min-h-[100px]"
                     placeholder={zh.escalateReason.placeholder}
@@ -588,14 +612,35 @@ export function CasePage(props: CasePageProps) {
 
             {editorVisible && (
               <div className="mt-4">
-                <label className="label">
-                  {zh.caseUI.finalReplyLabel}
-                  <span className="ml-2 text-muted-foreground font-normal">
-                    {selected === "edit_then_send"
-                      ? zh.caseUI.finalReplyHelpEdit
-                      : zh.caseUI.finalReplyHelpRewrite}
-                  </span>
-                </label>
+                <div className="mb-2 flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+                  <label className="label flex-1">
+                    {zh.caseUI.finalReplyLabel}
+                    <span className="ml-2 font-normal text-muted-foreground">
+                      {selected === "edit_then_send"
+                        ? zh.caseUI.finalReplyHelpEdit
+                        : zh.caseUI.finalReplyHelpRewrite}
+                    </span>
+                  </label>
+                  <VoiceInputButton
+                    className="shrink-0"
+                    value={editorText}
+                    onChange={setEditorText}
+                    onVoiceActivity={(kind, detail) => {
+                      onLogEvent?.(
+                        kind === "started"
+                          ? "voice_input_started"
+                          : kind === "error"
+                            ? "voice_input_error"
+                            : "voice_input_ended",
+                        {
+                          caseId: casePayload.id,
+                          field: "final_reply",
+                          ...(detail?.code ? { code: detail.code } : {}),
+                        },
+                      );
+                    }}
+                  />
+                </div>
                 <textarea
                   className="textarea"
                   value={editorText}
@@ -656,12 +701,39 @@ export function CasePage(props: CasePageProps) {
               ))}
             </div>
             {actionReasonCode === "other" && (
-              <textarea
-                className="textarea min-h-[72px]"
-                placeholder={zh.caseUI.actionReasonOtherPlaceholder}
-                value={actionReasonText}
-                onChange={(e) => setActionReasonText(e.target.value)}
-              />
+              <div>
+                <div className="mb-2 flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+                  <label className="label flex-1 text-sm font-medium">
+                    {zh.caseUI.actionReasonOtherHeading}
+                  </label>
+                  <VoiceInputButton
+                    className="shrink-0"
+                    value={actionReasonText}
+                    onChange={setActionReasonText}
+                    disabled={submitting}
+                    onVoiceActivity={(kind, detail) => {
+                      onLogEvent?.(
+                        kind === "started"
+                          ? "voice_input_started"
+                          : kind === "error"
+                            ? "voice_input_error"
+                            : "voice_input_ended",
+                        {
+                          caseId: casePayload.id,
+                          field: "action_reason_other",
+                          ...(detail?.code ? { code: detail.code } : {}),
+                        },
+                      );
+                    }}
+                  />
+                </div>
+                <textarea
+                  className="textarea min-h-[72px]"
+                  placeholder={zh.caseUI.actionReasonOtherPlaceholder}
+                  value={actionReasonText}
+                  onChange={(e) => setActionReasonText(e.target.value)}
+                />
+              </div>
             )}
           </div>
           <div className="mt-7 space-y-5">

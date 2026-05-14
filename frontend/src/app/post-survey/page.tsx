@@ -4,6 +4,7 @@ import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 import { Loader2 } from "lucide-react";
 import { Likert } from "@/components/Likert";
+import { VoiceInputButton } from "@/components/VoiceInputButton";
 import { api } from "@/lib/api/client";
 import type { PostSurveyResponse } from "@/lib/api/types";
 import { postSurveyConfig } from "@/lib/forms/postSurveyConfig";
@@ -81,7 +82,17 @@ export default function PostSurveyPage() {
             {b.items.map((it) =>
               it.type === "text" ? (
                 <div key={it.id}>
-                  <label className="label whitespace-pre-line">{it.text}</label>
+                  <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+                    <label className="label flex-1 whitespace-pre-line">{it.text}</label>
+                    <VoiceInputButton
+                      className="shrink-0"
+                      value={(answers[it.id] as string) ?? ""}
+                      onChange={(next) =>
+                        setAnswers({ ...answers, [it.id]: next })
+                      }
+                      disabled={busy}
+                    />
+                  </div>
                   <textarea
                     className="textarea mt-2 min-h-[140px]"
                     rows={6}
