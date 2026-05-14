@@ -1,7 +1,12 @@
 """模拟用户走完全流程，并验证写入库中的内容与管理员 CSV/ZIP 导出一致。
 
-覆盖：前测字段、案例 open、UI 事件 payload、动作 final_reply_text 与派生 client_stats（log_*）、
-案例末量表、后测（含开放式题）、以及导出接口。"""
+覆盖：前测字段、案例 open、UI 事件 payload（含点击与语音相关事件名）、
+动作 final_reply_text 与派生 client_stats（log_*）、案例末量表、后测（含开放式题）、
+以及导出接口。
+
+说明：真实「浏览器 Web Speech」无法在 pytest 中驱动麦克风；语音相关通过
+与前端 `logEvent` 相同的 `POST /api/ui-event` 契约（voice_input_*）验证落库与导出。
+"""
 
 from __future__ import annotations
 
@@ -42,6 +47,7 @@ async def test_simulated_user_full_flow_records_and_exports(
     marker_open_q1 = f"{tag}_OPEN_Q1_临床场景说明"
     marker_open_q2 = f"{tag}_OPEN_Q2_信任与保障"
     marker_open_q3 = f"{tag}_OPEN_Q3_流程与责任"
+    marker_voice = f"{tag}_VOICE_TRACE"
 
     s = (await client.post("/api/session")).json()
     sid = s["sessionId"]
@@ -91,6 +97,54 @@ async def test_simulated_user_full_flow_records_and_exports(
             },
         )
         assert ui_r.status_code == 200
+
+        # 模拟前端语音按钮触发的 ui_events（与 CasePage + logEvent 一致）
+        vs = await client.post(
+            "/api/ui-event",
+            json={
+                "sessionId": sid,
+                "casePresentationId": pres_id,
+                "eventType": "voice_input_started",
+                "payload": {
+                    "caseId": cid,
+                    "field": "final_reply",
+                    "marker": marker_voice,
+                    "caseIndex": i,
+                },
+            },
+        )
+        assert vs.status_code == 200
+        if i == 0:
+            ver = await client.post(
+                "/api/ui-event",
+                json={
+                    "sessionId": sid,
+                    "casePresentationId": pres_id,
+                    "eventType": "voice_input_error",
+                    "payload": {
+                        "caseId": cid,
+                        "field": "final_reply",
+                        "code": "simulated_no_mic",
+                        "marker": marker_voice,
+                    },
+                },
+            )
+            assert ver.status_code == 200
+        ve = await client.post(
+            "/api/ui-event",
+            json={
+                "sessionId": sid,
+                "casePresentationId": pres_id,
+                "eventType": "voice_input_ended",
+                "payload": {
+                    "caseId": cid,
+                    "field": "final_reply",
+                    "marker": marker_voice,
+                    "caseIndex": i,
+                },
+            },
+        )
+        assert ve.status_code == 200
 
         cr = await client.get(f"/api/case/{cid}?sessionId={sid}")
         assert cr.status_code == 200
@@ -178,6 +232,19 @@ async def test_simulated_user_full_flow_records_and_exports(
     assert ru.status_code == 200
     assert marker_ui in ru.text
     assert sid in ru.text
+    assert "voice_input_started" in ru.text
+    assert "voice_input_ended" in ru.text
+    assert "voice_input_error" in ru.text
+    assert marker_voice in ru.text
+    ui_reader = csv.DictReader(io.StringIO(ru.text))
+    ui_for_sid = [row for row in ui_reader if row.get("sessionId") == sid]
+    v_starts = [r for r in ui_for_sid if r.get("eventType") == "voice_input_started"]
+    v_ends = [r for r in ui_for_sid if r.get("eventType") == "voice_input_ended"]
+    assert len(v_starts) == 8 and len(v_ends) == 8
+    for r in v_starts:
+        pj = json.loads(r["payloadJson"] or "{}")
+        assert pj.get("marker") == marker_voice
+        assert pj.get("field") == "final_reply"
 
     rcs = await client.get("/api/admin/export", params={"table": "case_surveys", "format": "csv"}, headers=headers)
     assert rcs.status_code == 200
@@ -222,6 +289,9 @@ async def test_simulated_user_full_flow_records_and_exports(
         assert marker_open_q1 in post_csv
         act_csv = zf.read("actions.csv").decode("utf-8")
         assert marker_final in act_csv
+        ui_csv = zf.read("ui_events.csv").decode("utf-8")
+        assert "voice_input_started" in ui_csv
+        assert marker_voice in ui_csv
 
     rsql = await client.get("/api/admin/export/full-database", headers=headers)
     assert rsql.status_code == 200
