@@ -195,9 +195,9 @@ async def test_simulated_user_full_flow_records_and_exports(
         now_ms += 10_000
 
     post_payload = dict(post_survey_v7_all_threes())
-    post_payload["post_qual_future_ai_roles"] = marker_open_q1
-    post_payload["post_qual_trust_conditions"] = marker_open_q2
-    post_payload["post_qual_workflow_responsibility"] = marker_open_q3
+    post_payload["post_qual_ehr_redesign"] = marker_open_q1
+    post_payload["post_qual_ai_autonomy"] = marker_open_q2
+    post_payload["post_qual_infrastructure_impact"] = marker_open_q3
 
     pr = await client.post(
         "/api/post-survey",
@@ -272,7 +272,7 @@ async def test_simulated_user_full_flow_records_and_exports(
     ours = [x for x in rows if x.get("sessionId") == sid]
     assert len(ours) == 1
     loaded = json.loads(ours[0]["payloadJson"])
-    assert loaded["post_qual_future_ai_roles"] == marker_open_q1
+    assert loaded["post_qual_ehr_redesign"] == marker_open_q1
     assert loaded["attn_post_1"] == 4
 
     rb = await client.get(

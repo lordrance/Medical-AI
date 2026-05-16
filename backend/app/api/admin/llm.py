@@ -5,14 +5,12 @@ from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel
-from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import db_session
 from app.core.security import require_admin
 from app.db.models import (
     CohortSummary,
-    LLMCall,
     Participant,
 )
 from app.llm.base import LLMUnavailable
@@ -24,6 +22,7 @@ from app.services.analysis import (
     per_case_stats,
     per_participant_stats,
 )
+from app.services.llm_audit import record_llm_call
 
 router = APIRouter(prefix="/api/admin/llm", tags=["admin-llm"])
 
@@ -55,35 +54,6 @@ class SummaryResponse(BaseModel):
     latencyMs: int
 
 
-async def _record_llm_call(
-    db: AsyncSession,
-    *,
-    purpose: str,
-    provider: str,
-    model: str,
-    prompt_text: str,
-    response_text: str,
-    prompt_tokens: int | None,
-    completion_tokens: int | None,
-    latency_ms: int,
-    error: str | None = None,
-) -> None:
-    db.add(
-        LLMCall(
-            purpose=purpose,
-            provider=provider,
-            model=model,
-            prompt_text=prompt_text,
-            response_text=response_text,
-            prompt_tokens=prompt_tokens,
-            completion_tokens=completion_tokens,
-            latency_ms=latency_ms,
-            error=error,
-        )
-    )
-    await db.commit()
-
-
 @router.post("/case-draft", response_model=CaseDraftResponse)
 async def llm_case_draft(
     request: Request,
@@ -105,7 +75,7 @@ async def llm_case_draft(
     try:
         resp = await provider.generate(system=system, user=user, max_tokens=512)
     except LLMUnavailable as e:
-        await _record_llm_call(
+        await record_llm_call(
             db,
             purpose="case_draft",
             provider=provider.name,
@@ -119,7 +89,7 @@ async def llm_case_draft(
         )
         raise HTTPException(503, str(e)) from e
 
-    await _record_llm_call(
+    await record_llm_call(
         db,
         purpose="case_draft",
         provider=resp.provider,
@@ -178,9 +148,21 @@ async def llm_participant_summary(
     try:
         resp = await provider.generate(system=system, user=user, max_tokens=600)
     except LLMUnavailable as e:
+        await record_llm_call(
+            db,
+            purpose="participant_summary",
+            provider=provider.name,
+            model=provider.model,
+            prompt_text=user[:4000],
+            response_text="",
+            prompt_tokens=None,
+            completion_tokens=None,
+            latency_ms=0,
+            error=str(e),
+        )
         raise HTTPException(503, str(e)) from e
 
-    await _record_llm_call(
+    await record_llm_call(
         db,
         purpose="participant_summary",
         provider=resp.provider,
@@ -222,6 +204,18 @@ async def llm_cohort_summary(
     try:
         resp = await provider.generate(system=system, user=user, max_tokens=900)
     except LLMUnavailable as e:
+        await record_llm_call(
+            db,
+            purpose="cohort_summary",
+            provider=provider.name,
+            model=provider.model,
+            prompt_text=user[:4000],
+            response_text="",
+            prompt_tokens=None,
+            completion_tokens=None,
+            latency_ms=0,
+            error=str(e),
+        )
         raise HTTPException(503, str(e)) from e
 
     db.add(
@@ -230,7 +224,7 @@ async def llm_cohort_summary(
             summary_text=resp.text,
         )
     )
-    await _record_llm_call(
+    await record_llm_call(
         db,
         purpose="cohort_summary",
         provider=resp.provider,

@@ -97,14 +97,14 @@ class PostSurveyV7Payload(BaseModel):
     post_accept_future_use: int = _L
     post_accept_limited_use: int = _L
     post_accept_optional: int = _L
-    post_qual_future_ai_roles: str = Field(max_length=20000)
-    post_qual_trust_conditions: str = Field(max_length=20000)
-    post_qual_workflow_responsibility: str = Field(max_length=20000)
+    post_qual_ehr_redesign: str = Field(max_length=20000)
+    post_qual_ai_autonomy: str = Field(max_length=20000)
+    post_qual_infrastructure_impact: str = Field(max_length=20000)
 
     @field_validator(
-        "post_qual_future_ai_roles",
-        "post_qual_trust_conditions",
-        "post_qual_workflow_responsibility",
+        "post_qual_ehr_redesign",
+        "post_qual_ai_autonomy",
+        "post_qual_infrastructure_impact",
     )
     @classmethod
     def _strip_open_text(cls, v: str) -> str:
@@ -126,13 +126,13 @@ def post_survey_v7_all_threes() -> dict[str, int | str]:
     """测试用：Likert 除注意力题外均为 3，注意力题为 4；开放式题为占位文本。"""
     d: dict[str, int | str] = {k: 3 for k in POST_SURVEY_LIKERT_KEYS}
     d["attn_post_1"] = 4
-    d["post_qual_future_ai_roles"] = (
-        "测试作答占位：AI 可承担低风险文书与信息整理，临床判断与沟通仍由医生主导。"
+    d["post_qual_ehr_redesign"] = (
+        "测试作答占位：希望 EHR 减少重复文书与多系统切换，AI 可整合病史、预测随访并降低点击查找负担。"
     )
-    d["post_qual_trust_conditions"] = (
-        "测试作答占位：需来源依据、可解释性与审计记录，数据安全与人工把关可增强信任。"
+    d["post_qual_ai_autonomy"] = (
+        "测试作答占位：可将风险提醒、信息整理与低风险流程交给 AI；诊断治疗决策与最终责任不可交出。"
     )
-    d["post_qual_workflow_responsibility"] = (
-        "测试作答占位：流程效率或提升，但需防范过度依赖；责任应由机构政策与临床把关共同界定。"
+    d["post_qual_infrastructure_impact"] = (
+        "测试作答占位：基础设施化或重塑临床能力但带来责任模糊；医院应建立 AI 审核岗位、审计记录与问责机制。"
     )
     return d

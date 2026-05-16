@@ -3,11 +3,6 @@ from __future__ import annotations
 from enum import Enum
 
 
-class Condition(str, Enum):
-    plain = "plain"
-    guardrail = "guardrail"
-
-
 class SelectedAction(str, Enum):
     send_as_is = "send_as_is"
     edit_then_send = "edit_then_send"
@@ -38,10 +33,3 @@ class EscalateSubtype(str, Enum):
     urgent_evaluation = "urgent_evaluation"
     call_patient = "call_patient"
     other = "other"
-
-
-ESCALATE_SUBTYPE_LABEL_ZH: dict[str, str] = {
-    "urgent_evaluation": "建议立即就诊或急诊",
-    "call_patient": "电话回访患者",
-    "other": "其他升级处理",
-}

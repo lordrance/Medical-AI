@@ -13,11 +13,12 @@ from app.llm.base import LLMUnavailable
 from app.llm.factory import get_provider
 from app.llm.prompts import load_prompt, render_template
 from app.schemas.case import CasePayload, CaseResponse, GuardrailContent
+from app.services.llm_audit import record_llm_call
 
 router = APIRouter(prefix="/api/case", tags=["case"])
 
 
-async def _generate_ai_risk_tip(case: Case) -> str:
+async def _generate_ai_risk_tip(case: Case, db: AsyncSession) -> str:
     """LLM-generated AI risk tip; fallback to seeded risk_cue."""
     provider = get_provider()
     system, user_tpl = load_prompt("risk_tip")
@@ -33,15 +34,37 @@ async def _generate_ai_risk_tip(case: Case) -> str:
     )
     try:
         resp = await provider.generate(system=system, user=user, max_tokens=256)
-        text = (resp.text or "").strip()
-        if text:
-            return text
-    except LLMUnavailable:
-        pass
-    return case.risk_cue
+    except LLMUnavailable as e:
+        await record_llm_call(
+            db,
+            purpose="risk_tip",
+            provider=provider.name,
+            model=provider.model,
+            prompt_text=user[:4000],
+            response_text="",
+            prompt_tokens=None,
+            completion_tokens=None,
+            latency_ms=0,
+            error=str(e),
+        )
+        return case.risk_cue
+
+    await record_llm_call(
+        db,
+        purpose="risk_tip",
+        provider=resp.provider,
+        model=resp.model,
+        prompt_text=user[:4000],
+        response_text=resp.text,
+        prompt_tokens=resp.prompt_tokens,
+        completion_tokens=resp.completion_tokens,
+        latency_ms=resp.latency_ms,
+    )
+    text = (resp.text or "").strip()
+    return text if text else case.risk_cue
 
 
-async def _generate_case_draft(case: Case) -> str:
+async def _generate_case_draft(case: Case, db: AsyncSession) -> str:
     """Return the patient-facing AI draft.
 
     For *defect* cases (defect_present=True), the seed `ai_draft` is the intentional
@@ -61,10 +84,33 @@ async def _generate_case_draft(case: Case) -> str:
     )
     try:
         resp = await provider.generate(system=system, user=user, max_tokens=512)
-        return resp.text
-    except LLMUnavailable:
-        # Fallback to seeded draft when LLM is temporarily unavailable.
+    except LLMUnavailable as e:
+        await record_llm_call(
+            db,
+            purpose="case_draft",
+            provider=provider.name,
+            model=provider.model,
+            prompt_text=user[:4000],
+            response_text="",
+            prompt_tokens=None,
+            completion_tokens=None,
+            latency_ms=0,
+            error=str(e),
+        )
         return case.ai_draft
+
+    await record_llm_call(
+        db,
+        purpose="case_draft",
+        provider=resp.provider,
+        model=resp.model,
+        prompt_text=user[:4000],
+        response_text=resp.text,
+        prompt_tokens=resp.prompt_tokens,
+        completion_tokens=resp.completion_tokens,
+        latency_ms=resp.latency_ms,
+    )
+    return resp.text
 
 
 @router.get("/{case_id}", response_model=CaseResponse)
@@ -85,9 +131,9 @@ async def get_case(
         raise HTTPException(404, "Case not found")
 
     is_guardrail = participant.condition == "guardrail"
-    ai_draft = await _generate_case_draft(case)
+    ai_draft = await _generate_case_draft(case, db)
     risk_for_guardrail = (
-        await _generate_ai_risk_tip(case) if is_guardrail else case.risk_cue
+        await _generate_ai_risk_tip(case, db) if is_guardrail else case.risk_cue
     )
 
     return CaseResponse(

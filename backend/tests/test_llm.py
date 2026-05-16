@@ -164,3 +164,105 @@ async def test_admin_llm_health(client: AsyncClient, admin_token: str) -> None:
     body = r.json()
     assert body["provider"] == "disabled"
     assert body["ok"] is False
+
+
+# --- Regression: LLM calls from participant-facing case rendering must be audited ---
+
+
+async def _fetch_llm_calls():
+    from sqlalchemy import select
+    from app.db.models import LLMCall
+    from app.db.session import get_session_factory
+
+    factory = get_session_factory()
+    async with factory() as s:
+        return (await s.execute(select(LLMCall))).scalars().all()
+
+
+async def _start_guardrail_session(client: AsyncClient) -> dict:
+    for _ in range(30):
+        s = (await client.post("/api/session")).json()
+        if s["condition"] == "guardrail":
+            return s
+    raise AssertionError("Could not draw a guardrail session in 30 tries")
+
+
+@pytest.mark.asyncio
+async def test_case_render_audits_llm_call_even_when_provider_disabled(
+    client: AsyncClient,
+) -> None:
+    """Bug #1 regression: participant-side LLM calls must be recorded in llm_calls,
+    even when the provider is disabled and the system falls back to seeded text.
+    Otherwise token usage / failure rates can't be audited for the study."""
+    _set_settings(LLM_PROVIDER="disabled")
+    s = await _start_guardrail_session(client)
+
+    # case_practice is the only non-defect case in the seed (defect_present=False),
+    # so it exercises BOTH _generate_case_draft and _generate_ai_risk_tip.
+    r = await client.get(
+        f"/api/case/case_practice?sessionId={s['sessionId']}"
+    )
+    assert r.status_code == 200
+
+    calls = await _fetch_llm_calls()
+    purposes = {c.purpose for c in calls}
+    assert "case_draft" in purposes, "case_draft LLM call not audited"
+    assert "risk_tip" in purposes, "risk_tip LLM call not audited"
+    # All calls should be marked as errors since provider is disabled
+    for c in calls:
+        assert c.error, f"expected error recorded for {c.purpose}, got empty"
+        assert c.provider == "disabled"
+
+
+@pytest.mark.asyncio
+async def test_defect_case_skips_case_draft_llm_call(client: AsyncClient) -> None:
+    """For defect_present cases we MUST NOT invoke the LLM for case_draft
+    (otherwise the model would 'fix' the seeded flaw). But guardrail risk_tip
+    still runs and must be audited."""
+    _set_settings(LLM_PROVIDER="disabled")
+    s = await _start_guardrail_session(client)
+    r = await client.get(f"/api/case/case_01?sessionId={s['sessionId']}")
+    assert r.status_code == 200
+
+    calls = await _fetch_llm_calls()
+    purposes = [c.purpose for c in calls]
+    assert "case_draft" not in purposes, "defect case must skip case_draft LLM"
+    assert "risk_tip" in purposes
+
+
+@pytest.mark.asyncio
+async def test_admin_participant_summary_audits_failure(
+    client: AsyncClient, admin_token: str
+) -> None:
+    """Bug #2 regression: participant_summary must record the failed LLM call
+    when the provider raises LLMUnavailable, mirroring case_draft behaviour."""
+    _set_settings(LLM_PROVIDER="disabled")
+    # First create a participant so the endpoint reaches the LLM call
+    s = (await client.post("/api/session")).json()
+    r = await client.post(
+        "/api/admin/llm/participant-summary",
+        headers={"X-Admin-Token": admin_token},
+        json={"participantId": s["participantId"]},
+    )
+    assert r.status_code == 503
+
+    calls = await _fetch_llm_calls()
+    err_rows = [c for c in calls if c.purpose == "participant_summary" and c.error]
+    assert err_rows, "failed participant_summary call must be audited"
+
+
+@pytest.mark.asyncio
+async def test_admin_cohort_summary_audits_failure(
+    client: AsyncClient, admin_token: str
+) -> None:
+    """Bug #2 regression: cohort_summary error path must also be audited."""
+    _set_settings(LLM_PROVIDER="disabled")
+    r = await client.post(
+        "/api/admin/llm/cohort-summary",
+        headers={"X-Admin-Token": admin_token},
+    )
+    assert r.status_code == 503
+
+    calls = await _fetch_llm_calls()
+    err_rows = [c for c in calls if c.purpose == "cohort_summary" and c.error]
+    assert err_rows, "failed cohort_summary call must be audited"

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 from datetime import datetime
 from typing import Any
 
@@ -9,6 +10,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import db_session
 from app.db.models import UiEvent
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/ui-event", tags=["ui-event"])
 
@@ -39,4 +42,13 @@ async def submit_event(
         await db.commit()
     except Exception:
         await db.rollback()
+        logger.warning(
+            "ui_event persistence failed (silently dropped)",
+            extra={
+                "sessionId": body.sessionId,
+                "casePresentationId": body.casePresentationId,
+                "eventType": body.eventType,
+            },
+            exc_info=True,
+        )
     return {"ok": True}

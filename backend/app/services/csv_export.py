@@ -3,7 +3,7 @@ from __future__ import annotations
 import csv
 import io
 from datetime import datetime
-from typing import Any, Iterable
+from typing import Any
 
 
 def to_csv(rows: list[dict[str, Any]], columns: list[str] | None = None) -> str:
@@ -75,7 +75,3 @@ def flatten_summary(s: dict[str, Any]) -> list[dict[str, Any]]:
     for r in s["perParticipant"]:
         rows.append({"kind": "per_participant", **r})
     return rows
-
-
-def coerce_iter_to_list(rows: Iterable[dict]) -> list[dict]:
-    return list(rows)
