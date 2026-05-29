@@ -117,12 +117,14 @@ async def test_defect_case_returns_seeded_flawed_draft(client: AsyncClient) -> N
     """defect_present cases must keep seeded flawed aiDraft; LLM must not 'fix' them."""
     from app.scripts.data_loader import load_cases
 
-    seeded = next(c for c in load_cases() if c["id"] == "case_01")
+    # case_06 is the V3 single-escalation case with defectPresent=true
+    # (GI bleed risk masked as 'observe with antacid').
+    seeded = next(c for c in load_cases() if c["id"] == "case_06")
     assert seeded["defectPresent"] is True
     needle = seeded["aiDraft"][:24]
 
     s = await _start_session(client)
-    r = await client.get(f"/api/case/case_01?sessionId={s['sessionId']}")
+    r = await client.get(f"/api/case/case_06?sessionId={s['sessionId']}")
     assert r.status_code == 200
     draft = r.json()["case"]["aiDraft"]
     assert needle in draft

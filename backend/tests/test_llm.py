@@ -218,10 +218,12 @@ async def test_case_render_audits_llm_call_even_when_provider_disabled(
 async def test_defect_case_skips_case_draft_llm_call(client: AsyncClient) -> None:
     """For defect_present cases we MUST NOT invoke the LLM for case_draft
     (otherwise the model would 'fix' the seeded flaw). But guardrail risk_tip
-    still runs and must be audited."""
+    still runs and must be audited.
+
+    case_06 is the V3 single-escalation case with defectPresent=true."""
     _set_settings(LLM_PROVIDER="disabled")
     s = await _start_guardrail_session(client)
-    r = await client.get(f"/api/case/case_01?sessionId={s['sessionId']}")
+    r = await client.get(f"/api/case/case_06?sessionId={s['sessionId']}")
     assert r.status_code == 200
 
     calls = await _fetch_llm_calls()

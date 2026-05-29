@@ -48,6 +48,7 @@ def main() -> int:
 
     formal_ids = {c.id for c in formal}
     defective_ids = {c.id for c in formal if c.defectPresent}
+    non_defective_ids = formal_ids - defective_ids
     high_risk_ids = {c.id for c in formal if c.riskLevel == "high"}
     low_risk_ids = {c.id for c in formal if c.riskLevel == "low"}
 
@@ -63,28 +64,27 @@ def main() -> int:
         for cid in order:
             if cid not in formal_ids:
                 errors.append(f"模板 {t['id']} 包含未知 case {cid}")
-        # constraint: defective not consecutive >=3
-        max_run = 0
-        run = 0
-        for cid in order:
-            if cid in defective_ids:
-                run += 1
-                max_run = max(max_run, run)
-            else:
-                run = 0
-        if max_run >= 3:
-            errors.append(f"模板 {t['id']} 出现 {max_run} 个 defective 连续")
-        # constraint: high risk not all in second half
-        last_half = order[4:]
-        if len([c for c in last_half if c in high_risk_ids]) == len(high_risk_ids) > 0:
-            errors.append(f"模板 {t['id']} 所有高风险 case 都集中在后半段")
-        # constraint: low-accurate not all in first half
+
         first_half = order[:4]
+        last_half = order[4:]
+
+        # V3 加难版：仅保留 1 个 non-defect 校准 case（case_01）时，要求它必须出现
+        # 在前半段，让受试者在前期看到 AI 至少有一次写对，避免「AI 必有错」的预期。
+        if non_defective_ids:
+            if not (non_defective_ids & set(first_half)):
+                errors.append(
+                    f"模板 {t['id']} 前半段未包含任何 non-defect case；"
+                    f"trust 校准要求至少 1 个 non-defect 在位置 1-4"
+                )
+
+        # 多元素集合时才检查「不全在某半段」（单 case 集合下该约束无意义）
+        if len(high_risk_ids) >= 2:
+            if len([c for c in last_half if c in high_risk_ids]) == len(high_risk_ids):
+                errors.append(f"模板 {t['id']} 所有高风险 case 都集中在后半段")
         low_accurate = low_risk_ids - defective_ids
-        if low_accurate and len(
-            [c for c in first_half if c in low_accurate]
-        ) == len(low_accurate):
-            warnings.append(f"模板 {t['id']} 所有 low-accurate case 都在前半段（建议打散）")
+        if len(low_accurate) >= 2:
+            if len([c for c in first_half if c in low_accurate]) == len(low_accurate):
+                warnings.append(f"模板 {t['id']} 所有 low-accurate case 都在前半段（建议打散）")
 
     pre = load_pre_survey()
     if not pre.get("items"):
