@@ -156,3 +156,68 @@ export interface LlmSummaryResponse {
   completionTokens: number | null;
   latencyMs: number;
 }
+
+// ---------------------------------------------------------------------------
+// Research dashboard (Phase B) — mirrors backend/app/api/admin/dashboard.py
+// ---------------------------------------------------------------------------
+
+export interface LlmStatsResponse {
+  totals: {
+    count: number;
+    errors: number;
+    errorRate: number;
+    promptTokens: number;
+    completionTokens: number;
+  };
+  perPurpose: {
+    purpose: string;
+    count: number;
+    errorRate: number;
+    p50Ms: number;
+    p95Ms: number;
+    promptTokens: number;
+    completionTokens: number;
+    count24h: number;
+  }[];
+}
+
+export interface CompletionTimeseriesPoint {
+  ts: string; // ISO 8601, bucket-truncated
+  started: number;
+  completed: number;
+}
+
+export interface LogStatsByConditionMetric {
+  key: string;
+  plain: { mean: number; n: number };
+  guardrail: { mean: number; n: number };
+}
+
+export interface LogStatsByConditionResponse {
+  conditions: string[];
+  metrics: LogStatsByConditionMetric[];
+}
+
+export interface UiEventFrequencyRow {
+  eventType: string;
+  count: number;
+  splits?: Record<string, number>;
+}
+
+export interface ActiveSessionRow {
+  sessionId: string;
+  participantId: string;
+  condition: string | null;
+  startedAt: string | null;
+  elapsedMs: number;
+  lastEventAt: string | null;
+  lastEventType: string | null;
+}
+
+export interface DashboardOverviewResponse {
+  llmStats: LlmStatsResponse;
+  timeseries: CompletionTimeseriesPoint[];
+  logByCondition: LogStatsByConditionResponse;
+  uiEvents: UiEventFrequencyRow[];
+  activeSessions: ActiveSessionRow[];
+}

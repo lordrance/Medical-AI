@@ -2,7 +2,7 @@
 
 import { Suspense, useEffect, useState } from "react";
 import { useSearchParams } from "next/navigation";
-import { Download, Sparkles, Loader2 } from "lucide-react";
+import { Download, Sparkles, Loader2, RefreshCcw } from "lucide-react";
 import { api, getApiBase } from "@/lib/api/client";
 import type {
   LlmSummaryResponse,
@@ -10,6 +10,12 @@ import type {
 } from "@/lib/api/types";
 import { zh } from "@/lib/i18n/zh-CN";
 import { PageBack } from "@/components/PageBack";
+import { useDashboardData } from "@/lib/useDashboardData";
+import { LlmHealthPanel } from "@/components/admin/LlmHealthPanel";
+import { CompletionTimeseries } from "@/components/admin/CompletionTimeseries";
+import { ConditionComparisonBars } from "@/components/admin/ConditionComparisonBars";
+import { UiEventHeatmap } from "@/components/admin/UiEventHeatmap";
+import { ActiveSessionsTable } from "@/components/admin/ActiveSessionsTable";
 
 const TABLES = [
   { id: "participants", label: "参与者" },
@@ -42,6 +48,7 @@ function AdminInner() {
   const [llmText, setLlmText] = useState<string | null>(null);
   const [llmBusy, setLlmBusy] = useState(false);
   const [llmErr, setLlmErr] = useState<string | null>(null);
+  const dashboard = useDashboardData(token);
 
   useEffect(() => {
     if (!token) return;
@@ -70,6 +77,57 @@ function AdminInner() {
         <h2 className="text-lg font-semibold">{zh.admin.title}</h2>
       </div>
 
+      {/* ---------------- Real-time research dashboard (Phase B) ---------------- */}
+      <div className="card card-section">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <h3 className="text-base font-semibold">实时审核 Dashboard</h3>
+          <div className="flex items-center gap-3 text-xs text-muted-foreground">
+            <label className="inline-flex cursor-pointer items-center gap-1.5">
+              <input
+                type="checkbox"
+                className="h-3.5 w-3.5"
+                checked={dashboard.autoRefresh}
+                onChange={(e) => dashboard.setAutoRefresh(e.target.checked)}
+              />
+              自动刷新 (15s)
+            </label>
+            <span>
+              {dashboard.lastFetchedAt
+                ? `上次更新：${dashboard.lastFetchedAt.toLocaleTimeString()}`
+                : "尚未更新"}
+            </span>
+            <button
+              className="btn-outline inline-flex items-center gap-1 px-2 py-1 text-xs"
+              onClick={() => void dashboard.refresh()}
+              disabled={dashboard.loading}
+            >
+              <RefreshCcw
+                className={`h-3.5 w-3.5 ${
+                  dashboard.loading ? "animate-spin" : ""
+                }`}
+              />
+              {dashboard.loading ? "加载中…" : "手动刷新"}
+            </button>
+          </div>
+        </div>
+        {dashboard.error && (
+          <p className="mt-2 text-sm text-destructive">
+            Dashboard 加载失败：{dashboard.error}
+          </p>
+        )}
+      </div>
+
+      {dashboard.data && (
+        <>
+          <ActiveSessionsTable data={dashboard.data.activeSessions} />
+          <LlmHealthPanel data={dashboard.data.llmStats} />
+          <ConditionComparisonBars data={dashboard.data.logByCondition} />
+          <CompletionTimeseries data={dashboard.data.timeseries} />
+          <UiEventHeatmap data={dashboard.data.uiEvents} />
+        </>
+      )}
+
+      {/* ---------------- Existing detailed tables (unchanged) ----------------- */}
       <div className="card card-section">
         <h3 className="text-base font-semibold">{zh.admin.completion}</h3>
         <p className="mt-2 text-sm text-foreground/80">
