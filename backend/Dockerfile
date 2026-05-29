@@ -9,11 +9,11 @@ ENV PYTHONUNBUFFERED=1 \
     PIP_DISABLE_PIP_VERSION_CHECK=1 \
     PIP_DEFAULT_TIMEOUT=120 \
     PIP_RETRIES=10 \
-    PIP_INDEX_URL=https://pypi.tuna.tsinghua.edu.cn/simple \
-    PIP_TRUSTED_HOST=pypi.tuna.tsinghua.edu.cn \
+    PIP_INDEX_URL=https://mirrors.aliyun.com/pypi/simple/ \
+    PIP_TRUSTED_HOST=mirrors.aliyun.com \
     DEBIAN_FRONTEND=noninteractive
 
-ARG DEBIAN_MIRROR=mirrors.tuna.tsinghua.edu.cn
+ARG DEBIAN_MIRROR=mirrors.aliyun.com
 
 RUN sed -i "s|deb.debian.org|${DEBIAN_MIRROR}|g; s|security.debian.org|${DEBIAN_MIRROR}|g" /etc/apt/sources.list.d/debian.sources
 
@@ -38,7 +38,7 @@ ENV PYTHONUNBUFFERED=1 \
     APP_ENV=production \
     DEBIAN_FRONTEND=noninteractive
 
-ARG DEBIAN_MIRROR=mirrors.tuna.tsinghua.edu.cn
+ARG DEBIAN_MIRROR=mirrors.aliyun.com
 
 RUN sed -i "s|deb.debian.org|${DEBIAN_MIRROR}|g; s|security.debian.org|${DEBIAN_MIRROR}|g" /etc/apt/sources.list.d/debian.sources
 
