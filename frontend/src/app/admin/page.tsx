@@ -1,9 +1,17 @@
 "use client";
 
-import { Suspense, useEffect, useState } from "react";
-import { useSearchParams } from "next/navigation";
-import { Download, Sparkles, Loader2, RefreshCcw } from "lucide-react";
-import { api, getApiBase } from "@/lib/api/client";
+import { Suspense, useCallback, useEffect, useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
+import {
+  Download,
+  Sparkles,
+  Loader2,
+  RefreshCcw,
+  LogIn,
+  LogOut,
+  ShieldAlert,
+} from "lucide-react";
+import { ApiError, api, getApiBase } from "@/lib/api/client";
 import type {
   LlmSummaryResponse,
   SummaryResponse,
@@ -16,6 +24,44 @@ import { CompletionTimeseries } from "@/components/admin/CompletionTimeseries";
 import { ConditionComparisonBars } from "@/components/admin/ConditionComparisonBars";
 import { UiEventHeatmap } from "@/components/admin/UiEventHeatmap";
 import { ActiveSessionsTable } from "@/components/admin/ActiveSessionsTable";
+
+const ADMIN_TOKEN_STORAGE_KEY = "medai_admin_token";
+
+/**
+ * Trigger a file download with X-Admin-Token header. Used by every export
+ * link so the token never appears in any URL (history / referer / screenshots).
+ *
+ * Works for files up to a few hundred MB in practice — full DB dumps in this
+ * HCI study are typically <20 MB. For larger payloads you'd want streamed
+ * downloads via a pre-signed URL or a one-shot download token.
+ */
+async function downloadWithToken(
+  path: string,
+  query: Record<string, string>,
+  token: string,
+  fallbackFilename: string,
+): Promise<void> {
+  const url = new URL(path, getApiBase());
+  for (const [k, v] of Object.entries(query)) url.searchParams.set(k, v);
+  const r = await fetch(url.toString(), {
+    headers: { "X-Admin-Token": token },
+  });
+  if (!r.ok) {
+    throw new Error(`下载失败 (${r.status})`);
+  }
+  const blob = await r.blob();
+  const cd = r.headers.get("Content-Disposition") || "";
+  const m = cd.match(/filename="?([^"]+)"?/);
+  const filename = m ? m[1] : fallbackFilename;
+  const objUrl = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = objUrl;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(objUrl);
+}
 
 const TABLES = [
   { id: "participants", label: "参与者" },
@@ -41,26 +87,70 @@ export default function AdminPage() {
 }
 
 function AdminInner() {
+  const router = useRouter();
   const params = useSearchParams();
-  const token = params.get("token") ?? "";
+  const [token, setToken] = useState<string | null>(null);
+  const [authChecked, setAuthChecked] = useState(false);
   const [summary, setSummary] = useState<SummaryResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [llmText, setLlmText] = useState<string | null>(null);
   const [llmBusy, setLlmBusy] = useState(false);
   const [llmErr, setLlmErr] = useState<string | null>(null);
-  const dashboard = useDashboardData(token);
+
+  // On mount: read token from sessionStorage. If the URL still carries a
+  // legacy ?token=... param, ingest it once and strip it so it doesn't leak
+  // via browser history / referer / screenshots.
+  useEffect(() => {
+    const urlToken = params.get("token");
+    if (urlToken) {
+      sessionStorage.setItem(ADMIN_TOKEN_STORAGE_KEY, urlToken);
+      router.replace("/admin");
+      setToken(urlToken);
+      setAuthChecked(true);
+      return;
+    }
+    const stored = sessionStorage.getItem(ADMIN_TOKEN_STORAGE_KEY);
+    if (stored) setToken(stored);
+    setAuthChecked(true);
+  }, [params, router]);
+
+  const logout = useCallback(() => {
+    sessionStorage.removeItem(ADMIN_TOKEN_STORAGE_KEY);
+    setToken(null);
+    setSummary(null);
+    setError(null);
+  }, []);
+
+  const dashboard = useDashboardData(token ?? "");
 
   useEffect(() => {
     if (!token) return;
+    setError(null);
     void api<SummaryResponse>("/api/admin/summary", {
       headers: { "X-Admin-Token": token },
     })
       .then(setSummary)
-      .catch((e) => setError((e as Error).message));
+      .catch((e) => {
+        // 401 means the stored token is wrong — drop it and force re-login
+        if (e instanceof ApiError && e.status === 401) {
+          sessionStorage.removeItem(ADMIN_TOKEN_STORAGE_KEY);
+          setToken(null);
+          setError("登录失败：token 不正确，请重新输入。");
+        } else {
+          setError((e as Error).message);
+        }
+      });
   }, [token]);
 
-  if (!token)
-    return <div className="card card-section">{zh.admin.needToken}</div>;
+  if (!authChecked)
+    return (
+      <div className="card card-section text-muted-foreground">
+        {zh.admin.loading}
+      </div>
+    );
+
+  if (!token) return <AdminLogin onLogin={setToken} hint={error} />;
+
   if (error)
     return <div className="card card-section text-destructive">{error}</div>;
   if (!summary)
@@ -73,8 +163,15 @@ function AdminInner() {
   return (
     <div className="space-y-5">
       <PageBack />
-      <div className="card card-section">
+      <div className="card card-section flex flex-wrap items-center justify-between gap-2">
         <h2 className="text-lg font-semibold">{zh.admin.title}</h2>
+        <button
+          className="btn-outline inline-flex items-center gap-1.5 px-3 py-1.5 text-xs"
+          onClick={logout}
+        >
+          <LogOut className="h-3.5 w-3.5" />
+          登出
+        </button>
       </div>
 
       {/* ---------------- Real-time research dashboard (Phase B) ---------------- */}
@@ -314,22 +411,36 @@ function AdminInner() {
           <div>
             <p className="text-sm font-medium">{zh.admin.exportFullDb}</p>
             <p className="mt-1 text-xs text-muted-foreground">{zh.admin.exportFullDbHint}</p>
-            <a
+            <button
               className="btn-primary mt-3 inline-flex text-xs"
-              href={`${getApiBase()}/api/admin/export/full-database?token=${encodeURIComponent(token)}`}
+              onClick={() =>
+                void downloadWithToken(
+                  "/api/admin/export/full-database",
+                  {},
+                  token,
+                  "medai_full_database.sql",
+                ).catch((e) => alert((e as Error).message))
+              }
             >
               {zh.admin.exportFullDb}
-            </a>
+            </button>
           </div>
           <div>
             <p className="text-sm font-medium">{zh.admin.exportBundle}</p>
             <p className="mt-1 text-xs text-muted-foreground">{zh.admin.exportBundleHint}</p>
-            <a
+            <button
               className="btn-primary mt-3 inline-flex text-xs"
-              href={`${getApiBase()}/api/admin/export/bundle?token=${encodeURIComponent(token)}`}
+              onClick={() =>
+                void downloadWithToken(
+                  "/api/admin/export/bundle",
+                  {},
+                  token,
+                  "study_export.zip",
+                ).catch((e) => alert((e as Error).message))
+              }
             >
               study_export.zip
-            </a>
+            </button>
           </div>
         </div>
         <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
@@ -345,22 +456,96 @@ function AdminInner() {
                 </p>
               </div>
               <div className="flex shrink-0 gap-2">
-                <a
+                <button
                   className="btn-outline text-xs"
-                  href={`${getApiBase()}/api/admin/export?token=${encodeURIComponent(token)}&table=${t.id}&format=csv`}
+                  onClick={() =>
+                    void downloadWithToken(
+                      "/api/admin/export",
+                      { table: t.id, format: "csv" },
+                      token,
+                      `${t.id}.csv`,
+                    ).catch((e) => alert((e as Error).message))
+                  }
                 >
                   {zh.admin.csv}
-                </a>
-                <a
+                </button>
+                <button
                   className="btn-outline text-xs"
-                  href={`${getApiBase()}/api/admin/export?token=${encodeURIComponent(token)}&table=${t.id}&format=json`}
+                  onClick={() =>
+                    void downloadWithToken(
+                      "/api/admin/export",
+                      { table: t.id, format: "json" },
+                      token,
+                      `${t.id}.json`,
+                    ).catch((e) => alert((e as Error).message))
+                  }
                 >
                   {zh.admin.json}
-                </a>
+                </button>
               </div>
             </div>
           ))}
         </div>
+      </div>
+    </div>
+  );
+}
+
+function AdminLogin({
+  onLogin,
+  hint,
+}: {
+  onLogin: (t: string) => void;
+  hint?: string | null;
+}) {
+  const [value, setValue] = useState("");
+
+  function submit(e: React.FormEvent) {
+    e.preventDefault();
+    const t = value.trim();
+    if (!t) return;
+    sessionStorage.setItem(ADMIN_TOKEN_STORAGE_KEY, t);
+    onLogin(t);
+  }
+
+  return (
+    <div className="mx-auto max-w-md space-y-5">
+      <PageBack />
+      <div className="card card-section">
+        <div className="flex items-center gap-2">
+          <ShieldAlert className="h-5 w-5 text-accent" />
+          <h2 className="text-lg font-semibold">管理员登录</h2>
+        </div>
+        <p className="mt-2 text-sm text-muted-foreground">
+          请输入后端 .env 中配置的 ADMIN_TOKEN。Token 仅保存在当前浏览器标签的
+          sessionStorage 中，关闭标签后自动清除，不会出现在 URL / 历史记录里。
+        </p>
+        <form onSubmit={submit} className="mt-4 space-y-3">
+          <label className="block text-sm font-medium" htmlFor="admin-token">
+            ADMIN_TOKEN
+          </label>
+          <input
+            id="admin-token"
+            type="password"
+            autoComplete="off"
+            autoFocus
+            className="input w-full"
+            placeholder="输入 token"
+            value={value}
+            onChange={(e) => setValue(e.target.value)}
+          />
+          {hint && (
+            <p className="text-sm text-destructive">{hint}</p>
+          )}
+          <button
+            type="submit"
+            className="btn-primary inline-flex w-full items-center justify-center gap-1.5"
+            disabled={!value.trim()}
+          >
+            <LogIn className="h-4 w-4" />
+            登录
+          </button>
+        </form>
       </div>
     </div>
   );
