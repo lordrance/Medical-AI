@@ -8,6 +8,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app.api import action, case, healthz, session as session_api, survey, ui_event
 from app.api.admin import (
+    dashboard as admin_dashboard,
     export as admin_export,
     llm as admin_llm,
     summary as admin_summary,
@@ -49,6 +50,7 @@ def create_app() -> FastAPI:
     app.include_router(admin_summary.router)
     app.include_router(admin_export.router)
     app.include_router(admin_llm.router)
+    app.include_router(admin_dashboard.router)
 
     return app
 
