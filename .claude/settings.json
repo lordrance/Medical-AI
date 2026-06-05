@@ -1,0 +1,85 @@
+{
+  "_comment_overview": "Two things here: (1) `hooks.PreToolUse` runs block_dangerous_commands.py on every Bash/PowerShell call — blocks rm -rf, git push --force, git reset --hard, reading .env, printing $TOKEN, etc. (2) `permissions.allow` pre-approves the read-mostly + test + build + git-local commands used most often on this project, so the assistant doesn't need to re-ask for them every turn. Anything not listed still prompts you the first time. Adapted from claude-code-bmad-foundation.",
+
+  "permissions": {
+    "defaultMode": "acceptEdits",
+
+    "allow": [
+      "Read(*)",
+
+      "Bash(ls:*)",
+      "Bash(pwd)",
+      "Bash(cat:*)",
+      "Bash(head:*)",
+      "Bash(tail:*)",
+      "Bash(find:*)",
+      "Bash(wc:*)",
+      "Bash(file:*)",
+      "Bash(which:*)",
+      "Bash(grep:*)",
+
+      "Bash(git status:*)",
+      "Bash(git diff:*)",
+      "Bash(git log:*)",
+      "Bash(git branch:*)",
+      "Bash(git show:*)",
+      "Bash(git remote:*)",
+      "Bash(git config --get:*)",
+      "Bash(git ls-files:*)",
+      "Bash(git ls-remote:*)",
+      "Bash(git rev-parse:*)",
+      "Bash(git add:*)",
+      "Bash(git restore:*)",
+      "Bash(git stash:*)",
+      "Bash(git switch:*)",
+      "Bash(git checkout:*)",
+      "Bash(git fetch:*)",
+      "Bash(git for-each-ref:*)",
+      "Bash(git merge-base:*)",
+
+      "Bash(python -m pytest:*)",
+      "Bash(python -m ruff:*)",
+      "Bash(python -m mypy:*)",
+      "Bash(python -m app.scripts.validate_data)",
+      "Bash(python -m app.scripts.seed)",
+      "Bash(python -m alembic:*)",
+      "Bash(python --version)",
+
+      "Bash(npm install:*)",
+      "Bash(npm ci:*)",
+      "Bash(npm run typecheck:*)",
+      "Bash(npm run lint:*)",
+      "Bash(npm run test:*)",
+      "Bash(npm run build:*)",
+      "Bash(npm run dev)",
+
+      "Bash(docker ps:*)",
+      "Bash(docker images:*)",
+      "Bash(docker logs:*)",
+      "Bash(docker inspect:*)",
+      "Bash(docker system df)",
+      "Bash(docker builder du)",
+      "Bash(docker buildx ls)",
+      "Bash(docker compose ps:*)",
+      "Bash(docker compose logs:*)",
+
+      "Bash(curl -s http://localhost:*)",
+      "Bash(curl -I http://localhost:*)",
+      "Bash(curl -s -o /dev/null:*)"
+    ]
+  },
+
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Bash|PowerShell",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python .claude/hooks/block_dangerous_commands.py"
+          }
+        ]
+      }
+    ]
+  }
+}
