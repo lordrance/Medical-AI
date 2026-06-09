@@ -56,10 +56,14 @@ services:
     volumes:
       - ./data/voice_recordings:/app/data/voice_recordings
     healthcheck:
-      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:8000/healthz"]
+      # GET (not HEAD) because /healthz only accepts GET — `wget --spider`
+      # sends HEAD and the backend would return 405 Method Not Allowed,
+      # forever marking the container unhealthy.
+      test: ["CMD", "wget", "--quiet", "--tries=1", "-O", "/dev/null", "http://localhost:8000/healthz"]
       interval: 30s
       timeout: 5s
       retries: 3
+      start_period: 60s
 
   frontend:
     build:
