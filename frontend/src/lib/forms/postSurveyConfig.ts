@@ -185,22 +185,16 @@ export const postSurveyConfig: PostSurveyConfig = {
           "text": "我感觉 AI 生成内容有时会基于有限信息，给出超出证据支持范围的临床判断。"
         },
         {
+          "id": "attn_post_1",
+          "text": "为确认您在认真作答，请在本题选择「4」。"
+        },
+        {
           "id": "post_hallu_3",
           "text": "我担心 AI 生成内容会把风险程度、紧急程度或建议强度表达得不够准确。"
         },
         {
           "id": "post_hallu_4",
           "text": "我感觉 AI 生成内容有时会遗漏或弱化需要提醒患者注意的关键信息。"
-        }
-      ]
-    },
-    {
-      "id": "attention",
-      "title": "注意力检测",
-      "items": [
-        {
-          "id": "attn_post_1",
-          "text": "为确认您在认真作答，请在本题选择「4」。"
         }
       ]
     },
