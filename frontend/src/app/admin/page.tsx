@@ -11,7 +11,7 @@ import {
   LogOut,
   ShieldAlert,
 } from "lucide-react";
-import { ApiError, api, getApiBase } from "@/lib/api/client";
+import { ApiError, api, buildFetchUrl } from "@/lib/api/client";
 import type {
   LlmSummaryResponse,
   SummaryResponse,
@@ -41,9 +41,8 @@ async function downloadWithToken(
   token: string,
   fallbackFilename: string,
 ): Promise<void> {
-  const url = new URL(path, getApiBase());
-  for (const [k, v] of Object.entries(query)) url.searchParams.set(k, v);
-  const r = await fetch(url.toString(), {
+  const fullUrl = buildFetchUrl(path, query);
+  const r = await fetch(fullUrl, {
     headers: { "X-Admin-Token": token },
   });
   if (!r.ok) {
