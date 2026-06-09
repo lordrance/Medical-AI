@@ -16,9 +16,10 @@
 #   only to keep the rest of the API tight.
 
 {$SITE_DOMAIN} {
-    # Optional: hand Let's Encrypt an email for renewal notices.
-    # Leave ACME_EMAIL blank in .env to use ACME defaults.
-    tls {$ACME_EMAIL}
+    # Caddy auto-provisions Let's Encrypt certificates by default — no
+    # `tls` directive needed for the happy path. (We used to have
+    # `tls {$ACME_EMAIL}` here, which broke when ACME_EMAIL was empty
+    # because `tls` with no argument is a parse error.)
 
     # 50 MB on the voice upload endpoint only.
     @upload path /api/voice-recording
