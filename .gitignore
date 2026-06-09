@@ -35,6 +35,10 @@ htmlcov/
 backend/dev.db
 backend/.env
 
+# V4: participant audio uploads (L1/L2/L3 post-survey recordings).
+# Local files only; metadata + paths live in the voice_recordings table.
+backend/data/voice_recordings/
+
 # 本地/个人工具脚本（不提交）— 将 integration_llm_case_api.py、visualize_study_data.py 放此目录
 backend/tools/
 

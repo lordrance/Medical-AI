@@ -5,6 +5,7 @@ import { useEffect, useMemo, useState } from "react";
 import { Loader2 } from "lucide-react";
 import { Likert } from "@/components/Likert";
 import { VoiceInputButton } from "@/components/VoiceInputButton";
+import { VoiceRecorderButton } from "@/components/VoiceRecorderButton";
 import { api } from "@/lib/api/client";
 import type { PostSurveyResponse } from "@/lib/api/types";
 import { postSurveyConfig } from "@/lib/forms/postSurveyConfig";
@@ -101,6 +102,17 @@ export default function PostSurveyPage() {
                       setAnswers({ ...answers, [it.id]: e.target.value })
                     }
                   />
+                  {session && (
+                    <div className="mt-2 rounded-md border border-border/60 bg-muted/30 px-3 py-2">
+                      <p className="mb-1 text-xs font-medium text-foreground/80">
+                        语音补充（可选，将由研究团队事后人工转写）
+                      </p>
+                      <VoiceRecorderButton
+                        sessionId={session.sessionId}
+                        questionId={it.id}
+                      />
+                    </div>
+                  )}
                 </div>
               ) : (
                 <div key={it.id}>

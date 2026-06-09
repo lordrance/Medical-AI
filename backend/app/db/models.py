@@ -253,6 +253,36 @@ class UiEvent(Base):
 
 
 # ---------------------------------------------------------------------------
+# Voice recordings (V4: open-ended post-survey items L1/L2/L3 may attach
+# audio captured via MediaRecorder for offline human transcription)
+# ---------------------------------------------------------------------------
+
+
+class VoiceRecording(Base):
+    __tablename__ = "voice_recordings"
+
+    id: Mapped[str] = mapped_column(String(64), primary_key=True, default=_uuid)
+    session_id: Mapped[str] = mapped_column(
+        ForeignKey("sessions.id"), nullable=False
+    )
+    # Which post-survey item the recording is for, e.g.
+    # "post_qual_l1_ehr_pain_ai_substitution". Free-form string; not a FK.
+    question_id: Mapped[str] = mapped_column(String(128), nullable=False)
+    file_path: Mapped[str] = mapped_column(String(512), nullable=False)
+    mime_type: Mapped[str] = mapped_column(String(64), nullable=False)
+    duration_ms: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    file_size_bytes: Mapped[int] = mapped_column(Integer, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=utcnow, nullable=False
+    )
+
+    __table_args__ = (
+        Index("ix_voice_recordings_session", "session_id"),
+        Index("ix_voice_recordings_session_question", "session_id", "question_id"),
+    )
+
+
+# ---------------------------------------------------------------------------
 # LLM tables
 # ---------------------------------------------------------------------------
 

@@ -6,7 +6,15 @@ from typing import AsyncIterator
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from app.api import action, case, healthz, session as session_api, survey, ui_event
+from app.api import (
+    action,
+    case,
+    healthz,
+    session as session_api,
+    survey,
+    ui_event,
+    voice_recording,
+)
 from app.api.admin import (
     dashboard as admin_dashboard,
     export as admin_export,
@@ -47,6 +55,7 @@ def create_app() -> FastAPI:
     app.include_router(survey.router)
     app.include_router(action.router)
     app.include_router(ui_event.router)
+    app.include_router(voice_recording.router)
     app.include_router(admin_summary.router)
     app.include_router(admin_export.router)
     app.include_router(admin_llm.router)
