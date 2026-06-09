@@ -21,7 +21,7 @@ export interface SurveyConfig {
 
 export const preSurveyConfig: SurveyConfig = {
   title: "前测问卷",
-  description: "在开始审核案例之前，请回答以下背景问题（约 2—3 分钟）。",
+  description: "在开始审核案例之前，请回答以下背景问题。",
   items: [
     {
       id: "pre_specialty",
@@ -93,7 +93,7 @@ export const preSurveyConfig: SurveyConfig = {
       id: "pre_ai_drafting_familiarity",
       type: "likert",
       required: true,
-      label: "您对生成式 AI 起草工具的熟悉程度如何？",
+      label: "您对生成式 AI 起草工具（例如豆包、DeepSeek、ChatGPT、Kimi 等）的熟悉程度如何？",
       scale: {
         min: 1,
         max: 5,

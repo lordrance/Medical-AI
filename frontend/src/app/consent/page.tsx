@@ -44,6 +44,9 @@ export default function ConsentPage() {
         <p>{zh.consent.p1}</p>
         <p>{zh.consent.p2}</p>
         <p>{zh.consent.p3}</p>
+        <p className="rounded-md border border-accent/30 bg-accent/5 px-3 py-2 text-foreground">
+          {zh.consent.p4}
+        </p>
         <p className="font-medium text-foreground">{zh.consent.checklistIntro}</p>
         <ul className="list-disc space-y-1.5 pl-5">
           {zh.consent.checklistBullets.map((t) => (
