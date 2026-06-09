@@ -64,7 +64,7 @@ These are easy to break by accident and break the research, not just the code.
 
 ### B. Questionnaire 7.0 field naming
 
-- Survey-related columns and JSON keys use **snake_case** to align with the PDF codebook: `pre_specialty`, `case_action_choice`, `log_final_action`, `post_qual_ehr_redesign`, etc.
+- Survey-related columns and JSON keys use **snake_case** to align with the PDF codebook: `pre_specialty`, `case_action_choice`, `log_final_action`, `post_qual_l1_ehr_pain_ai_substitution`, etc.
 - DB metadata columns and frontend API DTOs use **camelCase** (e.g. `sessionId`, `casePresentationId`, `payloadJson`).
 - Don't "normalize" the naming. The split is intentional and matches the published research instrument.
 

@@ -97,14 +97,14 @@ class PostSurveyV7Payload(BaseModel):
     post_accept_future_use: int = _L
     post_accept_limited_use: int = _L
     post_accept_optional: int = _L
-    post_qual_ehr_redesign: str = Field(max_length=20000)
-    post_qual_ai_autonomy: str = Field(max_length=20000)
-    post_qual_infrastructure_impact: str = Field(max_length=20000)
+    post_qual_l1_ehr_pain_ai_substitution: str = Field(max_length=20000)
+    post_qual_l2_human_ai_boundary: str = Field(max_length=20000)
+    post_qual_l3_system_transformation: str = Field(max_length=20000)
 
     @field_validator(
-        "post_qual_ehr_redesign",
-        "post_qual_ai_autonomy",
-        "post_qual_infrastructure_impact",
+        "post_qual_l1_ehr_pain_ai_substitution",
+        "post_qual_l2_human_ai_boundary",
+        "post_qual_l3_system_transformation",
     )
     @classmethod
     def _strip_open_text(cls, v: str) -> str:
@@ -126,13 +126,13 @@ def post_survey_v7_all_threes() -> dict[str, int | str]:
     """测试用：Likert 除注意力题外均为 3，注意力题为 4；开放式题为占位文本。"""
     d: dict[str, int | str] = {k: 3 for k in POST_SURVEY_LIKERT_KEYS}
     d["attn_post_1"] = 4
-    d["post_qual_ehr_redesign"] = (
-        "测试作答占位：希望 EHR 减少重复文书与多系统切换，AI 可整合病史、预测随访并降低点击查找负担。"
+    d["post_qual_l1_ehr_pain_ai_substitution"] = (
+        "测试作答占位：EHR 文档填写与多系统信息整合最费力；AI 可协助病史摘要、警报去重、自动结构化录入；诊断与告知仍需医生本人完成。"
     )
-    d["post_qual_ai_autonomy"] = (
-        "测试作答占位：可将风险提醒、信息整理与低风险流程交给 AI；诊断治疗决策与最终责任不可交出。"
+    d["post_qual_l2_human_ai_boundary"] = (
+        "测试作答占位：Agentic AI 可独立承担行政工作、异常标记、风险预警；用药决策、诊断、敏感沟通与最终责任必须保留给医生；最担心 AI 越权调药的边界。"
     )
-    d["post_qual_infrastructure_impact"] = (
-        "测试作答占位：基础设施化或重塑临床能力但带来责任模糊；医院应建立 AI 审核岗位、审计记录与问责机制。"
+    d["post_qual_l3_system_transformation"] = (
+        "测试作答占位：医院组织管理与分级诊疗将被重塑，医生角色更偏审核；最期待文书负担下降，最担心责任模糊与患者隐私风险。"
     )
     return d

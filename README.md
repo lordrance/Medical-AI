@@ -42,9 +42,9 @@
 
 | ID | 主题 |
 |---|---|
-| `post_qual_ehr_redesign` | 如果未来可以重新设计 EHR，医生最希望哪些工作消失？AI 能让医疗系统实现哪些当前做不到的能力？ |
-| `post_qual_ai_autonomy` | AI 主动发现问题、推动流程时，医生愿意/绝不愿意把哪些主动权交给它？ |
-| `post_qual_infrastructure_impact` | AI 作为临床信息基础设施，会如何影响医生能力、工作负担、责任边界与医院管理？ |
+| `post_qual_l1_ehr_pain_ai_substitution` | EHR 日常使用痛点 + AI 可替代/协助的环节 + 仍需医生本人完成的部分 |
+| `post_qual_l2_human_ai_boundary` | Agentic AI 在医疗场景中可独立处理的任务边界 + 必须保留医生最终决策权的环节 |
+| `post_qual_l3_system_transformation` | AI 大规模采用后医疗系统在组织、角色、医患关系层面的预期变化 |
 
 ## 4. 后台自动记录（PDF 第五节）
 
