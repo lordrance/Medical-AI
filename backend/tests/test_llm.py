@@ -180,50 +180,49 @@ async def _fetch_llm_calls():
 
 
 @pytest.mark.asyncio
-async def test_case_render_audits_llm_call_even_when_provider_disabled(
+async def test_case_render_never_calls_llm_in_v4(
     client: AsyncClient,
 ) -> None:
-    """Bug #1 regression: participant-side case_draft LLM calls must be
-    recorded in llm_calls even when the provider is disabled and the system
-    falls back to seeded text. (Note: V4 removes the guardrail panel so
-    risk_tip is no longer triggered — only case_draft remains.)"""
+    """V4 design constraint: the AI draft is hardcoded (seeded) for every case
+    so the AI text is not an uncontrolled experimental variable. Loading any
+    case — defect or non-defect, practice or formal — must NOT touch the LLM
+    provider, so the llm_calls audit table stays empty for the participant
+    flow."""
     _set_settings(LLM_PROVIDER="disabled")
     s = (await client.post("/api/session")).json()
 
-    # case_practice is the only non-defect case in the seed (defect_present=False),
-    # so it actually exercises _generate_case_draft.
+    # case_practice is the only non-defect case in the seed; in V3 this would
+    # have triggered case_draft + risk_tip LLM calls. In V4 neither runs.
     r = await client.get(
         f"/api/case/case_practice?sessionId={s['sessionId']}"
     )
     assert r.status_code == 200
+    # Also exercise a defect case for symmetry.
+    r2 = await client.get(f"/api/case/case_06?sessionId={s['sessionId']}")
+    assert r2.status_code == 200
 
     calls = await _fetch_llm_calls()
-    purposes = {c.purpose for c in calls}
-    assert "case_draft" in purposes, "case_draft LLM call not audited"
-    # V4: guardrail panel removed; risk_tip must NOT be invoked anymore.
-    assert "risk_tip" not in purposes, "risk_tip should not fire in V4"
-    # The case_draft call should be marked as an error since provider is disabled
-    for c in calls:
-        assert c.error, f"expected error recorded for {c.purpose}, got empty"
-        assert c.provider == "disabled"
+    assert calls == [], (
+        f"V4 must not invoke any LLM during case render; got {len(calls)} calls"
+    )
 
 
 @pytest.mark.asyncio
-async def test_defect_case_skips_case_draft_llm_call(client: AsyncClient) -> None:
-    """For defect_present cases we MUST NOT invoke the LLM for case_draft
-    (otherwise the model would 'fix' the seeded flaw).
+async def test_case_render_returns_seeded_ai_draft(client: AsyncClient) -> None:
+    """V4 hardcodes the AI draft to case.ai_draft from the seed JSON. The
+    response must match the seeded text verbatim so every participant sees
+    the same draft for the same case."""
+    from app.scripts.data_loader import load_cases
 
-    case_06 is the V3 single-escalation case with defectPresent=true."""
-    _set_settings(LLM_PROVIDER="disabled")
+    seeded = next(c for c in load_cases() if c["id"] == "case_practice")
+    expected_draft = seeded["aiDraft"]
+
     s = (await client.post("/api/session")).json()
-    r = await client.get(f"/api/case/case_06?sessionId={s['sessionId']}")
+    r = await client.get(
+        f"/api/case/case_practice?sessionId={s['sessionId']}"
+    )
     assert r.status_code == 200
-
-    calls = await _fetch_llm_calls()
-    purposes = [c.purpose for c in calls]
-    assert "case_draft" not in purposes, "defect case must skip case_draft LLM"
-    # V4: no risk_tip invocation at all
-    assert "risk_tip" not in purposes
+    assert r.json()["case"]["aiDraft"] == expected_draft
 
 
 @pytest.mark.asyncio

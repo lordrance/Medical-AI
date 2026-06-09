@@ -65,52 +65,44 @@ async def _generate_ai_risk_tip(case: Case, db: AsyncSession) -> str:
 
 
 async def _generate_case_draft(case: Case, db: AsyncSession) -> str:
-    """Return the patient-facing AI draft.
+    """V4: always return the seeded `ai_draft` verbatim.
 
-    For *defect* cases (defect_present=True), the seed `ai_draft` is the intentional
-    flawed text for the study. We must not call the LLM in that case, or the model
-    will "fix" the error and break the experiment.
+    The V4 study design requires every participant to see the same fixed
+    AI draft for each case (otherwise the AI text becomes an uncontrolled
+    variable). The LLM provider plumbing, prompts, audit logging, and the
+    V3 "use LLM for non-defect, seed for defect" branch are intentionally
+    preserved below (commented out via early return) so a future revision
+    can re-enable live drafting without re-implementing the path.
     """
-    if case.defect_present:
-        return case.ai_draft
-    provider = get_provider()
-    system, user_tpl = load_prompt("case_draft")
-    user = render_template(
-        user_tpl,
-        {
-            "patientMessage": case.patient_message,
-            "chartSnapshotJson": json.dumps(case.chart_snapshot, ensure_ascii=False, indent=2),
-        },
-    )
-    try:
-        resp = await provider.generate(system=system, user=user, max_tokens=512)
-    except LLMUnavailable as e:
-        await record_llm_call(
-            db,
-            purpose="case_draft",
-            provider=provider.name,
-            model=provider.model,
-            prompt_text=user[:4000],
-            response_text="",
-            prompt_tokens=None,
-            completion_tokens=None,
-            latency_ms=0,
-            error=str(e),
-        )
-        return case.ai_draft
+    return case.ai_draft
 
-    await record_llm_call(
-        db,
-        purpose="case_draft",
-        provider=resp.provider,
-        model=resp.model,
-        prompt_text=user[:4000],
-        response_text=resp.text,
-        prompt_tokens=resp.prompt_tokens,
-        completion_tokens=resp.completion_tokens,
-        latency_ms=resp.latency_ms,
-    )
-    return resp.text
+    # --- V3 live-LLM path retained for archival reference -----------------
+    # if case.defect_present:
+    #     return case.ai_draft
+    # provider = get_provider()
+    # system, user_tpl = load_prompt("case_draft")
+    # user = render_template(
+    #     user_tpl,
+    #     {
+    #         "patientMessage": case.patient_message,
+    #         "chartSnapshotJson": json.dumps(case.chart_snapshot, ensure_ascii=False, indent=2),
+    #     },
+    # )
+    # try:
+    #     resp = await provider.generate(system=system, user=user, max_tokens=512)
+    # except LLMUnavailable as e:
+    #     await record_llm_call(db, purpose="case_draft", provider=provider.name,
+    #                           model=provider.model, prompt_text=user[:4000],
+    #                           response_text="", prompt_tokens=None,
+    #                           completion_tokens=None, latency_ms=0, error=str(e))
+    #     return case.ai_draft
+    # await record_llm_call(db, purpose="case_draft", provider=resp.provider,
+    #                       model=resp.model, prompt_text=user[:4000],
+    #                       response_text=resp.text,
+    #                       prompt_tokens=resp.prompt_tokens,
+    #                       completion_tokens=resp.completion_tokens,
+    #                       latency_ms=resp.latency_ms)
+    # return resp.text
 
 
 @router.get("/{case_id}", response_model=CaseResponse)
