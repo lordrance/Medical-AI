@@ -41,6 +41,29 @@ async def test_session_creates_with_single_condition_and_template(client: AsyncC
 
 
 @pytest.mark.asyncio
+async def test_action_accepts_nothing_to_change_reason(client: AsyncClient) -> None:
+    """V4: send_as_is gets a new reason 'nothing_to_change' ("基本无误，
+    可直接发送"). The backend enum must accept it for an action submission."""
+    s = await _start_session(client)
+    now = int(time.time() * 1000)
+    cid = s["caseOrder"][0]
+    r = await client.post(
+        "/api/action",
+        json={
+            "sessionId": s["sessionId"],
+            "caseId": cid,
+            "orderIndex": 0,
+            "selectedAction": "send_as_is",
+            "finalReplyText": "test",
+            "quickSurvey": {"caseDecisionConfidence": 4, "caseDraftHelpfulness": 4},
+            "caseActionReasonCode": "nothing_to_change",
+            "timing": {"startedAt": now - 1000, "endedAt": now, "durationMs": 1000},
+        },
+    )
+    assert r.status_code == 200, r.text
+
+
+@pytest.mark.asyncio
 async def test_case_endpoint_never_returns_guardrail_panel(client: AsyncClient) -> None:
     """V4: guardrail panel is fully removed from the participant UI; the case
     payload's guardrail field must always be None regardless of session."""

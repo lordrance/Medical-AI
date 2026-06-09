@@ -77,6 +77,7 @@ export const zh = {
     insufficient_info: "信息不足，无法据此回复",
     wording_issue: "措辞或语气需要调整",
     basically_ok: "整体基本可用，仅需少量修改",
+    nothing_to_change: "基本无误，可直接发送",
     other: "其他原因",
   },
   actions: {

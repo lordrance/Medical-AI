@@ -32,13 +32,27 @@ const ACTION_ORDER: SelectedAction[] = [
   "escalate",
 ];
 
-const ACTION_REASON_ORDER: ActionReasonCode[] = [
+// V4: send_as_is gets one extra reason "nothing_to_change" (PDF: 「基本
+// 无误，可直接发送」). Other actions keep the V3 5-option set unchanged.
+// We render the reasons by mapping over the per-action ordered list below.
+const ACTION_REASON_ORDER_DEFAULT: ActionReasonCode[] = [
   "safety_risk",
   "insufficient_info",
   "wording_issue",
   "basically_ok",
   "other",
 ];
+const ACTION_REASON_ORDER_SEND_AS_IS: ActionReasonCode[] = [
+  "nothing_to_change",
+  "safety_risk",
+  "wording_issue",
+  "other",
+];
+
+function reasonsForAction(action: SelectedAction | null): ActionReasonCode[] {
+  if (action === "send_as_is") return ACTION_REASON_ORDER_SEND_AS_IS;
+  return ACTION_REASON_ORDER_DEFAULT;
+}
 
 const ACTION_ICON: Record<SelectedAction, React.ComponentType<{ className?: string }>> = {
   send_as_is: Send,
@@ -636,7 +650,7 @@ export function CasePage(props: CasePageProps) {
               {zh.caseUI.actionReasonHeading}
             </p>
             <div className="grid gap-2">
-              {ACTION_REASON_ORDER.map((code) => (
+              {reasonsForAction(selected).map((code) => (
                 <label
                   key={code}
                   className="flex cursor-pointer items-start gap-2 rounded-md border border-border/60 px-3 py-2 text-sm hover:bg-muted/40"

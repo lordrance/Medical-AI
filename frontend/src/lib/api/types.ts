@@ -17,6 +17,7 @@ export type ActionReasonCode =
   | "insufficient_info"
   | "wording_issue"
   | "basically_ok"
+  | "nothing_to_change"
   | "other";
 
 export interface SessionInfo {
