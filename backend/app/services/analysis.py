@@ -425,19 +425,16 @@ _LOG_STATS_KEYS_SCALAR: tuple[str, ...] = (
 )
 
 
-async def log_stats_by_condition(db: AsyncSession) -> dict[str, Any]:
-    """Per-condition averages of the log_* fields in actions.client_stats.
+async def log_stats_overall(db: AsyncSession) -> dict[str, Any]:
+    """Cohort-wide averages of the log_* fields in actions.client_stats.
 
-    This is the core research signal — comparing guardrail vs plain on
-    verification and help-panel-usage behaviours. Practice cases excluded.
+    V4: single-condition study, so the V3 by-condition comparison
+    collapses to one column. Practice cases excluded.
 
     Returns:
         {
-          "conditions": ["plain", "guardrail"],
           "metrics": [
-              {"key": "log_help_risk_panel",
-               "plain":   {"mean": float, "n": int},
-               "guardrail": {"mean": float, "n": int}},
+              {"key": "log_help_risk_panel", "mean": float, "n": int},
               ...
               {"key": "log_scroll_dwell_draft_section_dwell_sec", ...},
           ]
@@ -445,48 +442,37 @@ async def log_stats_by_condition(db: AsyncSession) -> dict[str, Any]:
     """
     formal = await _formal_presentations(db)
 
-    by_cond_values: dict[str, dict[str, list[float]]] = {
-        "plain": defaultdict(list),
-        "guardrail": defaultdict(list),
-    }
+    values: dict[str, list[float]] = defaultdict(list)
 
     for p in formal:
-        sess = p.session
-        if sess is None or sess.participant is None:
-            continue
-        cond = sess.participant.condition
-        if cond not in by_cond_values:
-            continue
         cs = (p.action.client_stats or {}) if p.action is not None else {}
         if not isinstance(cs, dict):
             continue
         for k in _LOG_STATS_KEYS_SCALAR:
             v = cs.get(k)
             if isinstance(v, (int, float)):
-                by_cond_values[cond][k].append(float(v))
+                values[k].append(float(v))
         scroll = cs.get("log_scroll_dwell_draft")
         if isinstance(scroll, dict):
             sec = scroll.get("section_dwell_sec")
             if isinstance(sec, (int, float)):
-                by_cond_values[cond]["log_scroll_dwell_draft_section_dwell_sec"].append(
-                    float(sec)
-                )
+                values["log_scroll_dwell_draft_section_dwell_sec"].append(float(sec))
 
     all_keys = list(_LOG_STATS_KEYS_SCALAR) + [
         "log_scroll_dwell_draft_section_dwell_sec"
     ]
     metrics: list[dict[str, Any]] = []
     for k in all_keys:
-        row: dict[str, Any] = {"key": k}
-        for cond in ("plain", "guardrail"):
-            vals = by_cond_values[cond][k]
-            row[cond] = {
+        vals = values[k]
+        metrics.append(
+            {
+                "key": k,
                 "mean": (sum(vals) / len(vals)) if vals else 0.0,
                 "n": len(vals),
             }
-        metrics.append(row)
+        )
 
-    return {"conditions": ["plain", "guardrail"], "metrics": metrics}
+    return {"metrics": metrics}
 
 
 async def ui_event_frequency(

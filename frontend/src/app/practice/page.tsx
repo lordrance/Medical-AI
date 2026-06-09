@@ -69,7 +69,6 @@ export default function PracticePage() {
       <PageBack />
       <CasePage
         casePayload={casePayload}
-        condition={session.condition}
         progressCurrent={0}
         progressTotal={session.caseOrder.length}
         practiceBanner

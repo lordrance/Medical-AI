@@ -21,7 +21,7 @@ import { PageBack } from "@/components/PageBack";
 import { useDashboardData } from "@/lib/useDashboardData";
 import { LlmHealthPanel } from "@/components/admin/LlmHealthPanel";
 import { CompletionTimeseries } from "@/components/admin/CompletionTimeseries";
-import { ConditionComparisonBars } from "@/components/admin/ConditionComparisonBars";
+import { OverallBehaviorBars } from "@/components/admin/OverallBehaviorBars";
 import { UiEventHeatmap } from "@/components/admin/UiEventHeatmap";
 import { ActiveSessionsTable } from "@/components/admin/ActiveSessionsTable";
 
@@ -218,7 +218,7 @@ function AdminInner() {
         <>
           <ActiveSessionsTable data={dashboard.data.activeSessions} />
           <LlmHealthPanel data={dashboard.data.llmStats} />
-          <ConditionComparisonBars data={dashboard.data.logByCondition} />
+          <OverallBehaviorBars data={dashboard.data.logOverall} />
           <CompletionTimeseries data={dashboard.data.timeseries} />
           <UiEventHeatmap data={dashboard.data.uiEvents} />
         </>

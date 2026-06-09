@@ -81,7 +81,6 @@ export default function FormalCasePage() {
       <PageBack />
       <CasePage
         casePayload={casePayload}
-        condition={session.condition}
         progressCurrent={orderIndex + 1}
         progressTotal={total}
         casePresentationId={casePresentationId}

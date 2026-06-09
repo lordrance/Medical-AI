@@ -1,7 +1,10 @@
 // Hand-written, kept in sync with backend Pydantic schemas.
 // (Phase 7 will switch to openapi-typescript-generated types.)
 
-export type Condition = "plain" | "guardrail";
+// V4: single-condition study; the V3 "plain" | "guardrail" union collapses
+// to a single literal. Kept as a named type so SessionInfo / store / etc.
+// don't have to drop the field entirely (the backend still stores it).
+export type Condition = "single";
 
 export type SelectedAction =
   | "send_as_is"
@@ -187,15 +190,14 @@ export interface CompletionTimeseriesPoint {
   completed: number;
 }
 
-export interface LogStatsByConditionMetric {
+export interface LogStatsOverallMetric {
   key: string;
-  plain: { mean: number; n: number };
-  guardrail: { mean: number; n: number };
+  mean: number;
+  n: number;
 }
 
-export interface LogStatsByConditionResponse {
-  conditions: string[];
-  metrics: LogStatsByConditionMetric[];
+export interface LogStatsOverallResponse {
+  metrics: LogStatsOverallMetric[];
 }
 
 export interface UiEventFrequencyRow {
@@ -217,7 +219,7 @@ export interface ActiveSessionRow {
 export interface DashboardOverviewResponse {
   llmStats: LlmStatsResponse;
   timeseries: CompletionTimeseriesPoint[];
-  logByCondition: LogStatsByConditionResponse;
+  logOverall: LogStatsOverallResponse;
   uiEvents: UiEventFrequencyRow[];
   activeSessions: ActiveSessionRow[];
 }

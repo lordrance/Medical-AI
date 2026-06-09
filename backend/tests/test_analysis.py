@@ -36,7 +36,7 @@ from app.services.analysis import (
     completion_timeseries,
     confusion_matrix,
     llm_call_stats,
-    log_stats_by_condition,
+    log_stats_overall,
     per_case_stats,
     per_participant_stats,
     session_formal_performance,
@@ -766,89 +766,76 @@ async def test_completion_timeseries_bucket_day(db: AsyncSession) -> None:
 
 
 # ---------------------------------------------------------------------------
-# log_stats_by_condition
+# log_stats_overall (V4: single-condition study, no group comparison)
 # ---------------------------------------------------------------------------
 
 
 @pytest.mark.asyncio
-async def test_log_stats_by_condition_empty(db: AsyncSession) -> None:
-    result = await log_stats_by_condition(db)
-    assert result["conditions"] == ["plain", "guardrail"]
-    # Every metric present, both conditions, n=0, mean=0
+async def test_log_stats_overall_empty(db: AsyncSession) -> None:
+    result = await log_stats_overall(db)
     keys = {m["key"] for m in result["metrics"]}
     assert "log_help_risk_panel" in keys
     assert "log_scroll_dwell_draft_section_dwell_sec" in keys
     for m in result["metrics"]:
-        assert m["plain"] == {"mean": 0.0, "n": 0}
-        assert m["guardrail"] == {"mean": 0.0, "n": 0}
+        assert m["mean"] == 0.0
+        assert m["n"] == 0
 
 
 @pytest.mark.asyncio
-async def test_log_stats_by_condition_compares_two_conditions(
-    db: AsyncSession,
-) -> None:
-    """Core research signal — guardrail participants open the help panel
-    more often than plain, on average."""
+async def test_log_stats_overall_aggregates_cohort(db: AsyncSession) -> None:
+    """V4 collapses the V3 by-condition split into a single cohort mean."""
     await _mk_order_template(db)
     await _mk_case(db, case_id="c", gold="edit_then_send", defect_present=True)
 
-    pt_plain = await _mk_participant(db, condition="plain")
-    pt_guard = await _mk_participant(db, condition="guardrail")
-    s_plain = await _mk_session(db, participant_id=pt_plain.id)
-    s_guard = await _mk_session(db, participant_id=pt_guard.id)
+    pt1 = await _mk_participant(db, condition="single")
+    pt2 = await _mk_participant(db, condition="single")
+    s1 = await _mk_session(db, participant_id=pt1.id)
+    s2 = await _mk_session(db, participant_id=pt2.id)
 
-    # plain: did NOT open help panel; guardrail: did
-    pres_p, act_p = await _mk_submission(
-        db, session_id=s_plain.id, case_id="c", selected="edit_then_send"
+    _, act1 = await _mk_submission(
+        db, session_id=s1.id, case_id="c", selected="edit_then_send"
     )
-    act_p.client_stats = {
-        "log_help_risk_panel": 0,
+    act1.client_stats = {
         "log_verification_clicks": 1,
         "log_case_review_time": 12.0,
     }
-    pres_g, act_g = await _mk_submission(
-        db, session_id=s_guard.id, case_id="c", selected="edit_then_send"
+    _, act2 = await _mk_submission(
+        db, session_id=s2.id, case_id="c", selected="edit_then_send"
     )
-    act_g.client_stats = {
-        "log_help_risk_panel": 1,
+    act2.client_stats = {
         "log_verification_clicks": 5,
         "log_case_review_time": 28.0,
         "log_scroll_dwell_draft": {"section_dwell_sec": 3.5},
     }
     await db.commit()
 
-    result = await log_stats_by_condition(db)
+    result = await log_stats_overall(db)
     by_key = {m["key"]: m for m in result["metrics"]}
 
-    assert by_key["log_help_risk_panel"]["plain"] == {"mean": 0.0, "n": 1}
-    assert by_key["log_help_risk_panel"]["guardrail"] == {"mean": 1.0, "n": 1}
-    assert by_key["log_verification_clicks"]["plain"]["mean"] == 1.0
-    assert by_key["log_verification_clicks"]["guardrail"]["mean"] == 5.0
-    # nested dwell flattened
-    assert by_key["log_scroll_dwell_draft_section_dwell_sec"]["guardrail"] == {
-        "mean": 3.5,
-        "n": 1,
-    }
-    assert by_key["log_scroll_dwell_draft_section_dwell_sec"]["plain"]["n"] == 0
+    assert by_key["log_verification_clicks"]["mean"] == 3.0  # (1 + 5) / 2
+    assert by_key["log_verification_clicks"]["n"] == 2
+    assert by_key["log_case_review_time"]["mean"] == 20.0  # (12 + 28) / 2
+    assert by_key["log_scroll_dwell_draft_section_dwell_sec"]["mean"] == 3.5
+    assert by_key["log_scroll_dwell_draft_section_dwell_sec"]["n"] == 1
 
 
 @pytest.mark.asyncio
-async def test_log_stats_by_condition_handles_missing_client_stats(
+async def test_log_stats_overall_handles_missing_client_stats(
     db: AsyncSession,
 ) -> None:
     await _mk_order_template(db)
     await _mk_case(db, case_id="c", gold="send_as_is")
-    pt = await _mk_participant(db, condition="plain")
+    pt = await _mk_participant(db, condition="single")
     sess = await _mk_session(db, participant_id=pt.id)
-    pres, act = await _mk_submission(
+    _, act = await _mk_submission(
         db, session_id=sess.id, case_id="c", selected="send_as_is"
     )
     act.client_stats = None  # missing entirely
     await db.commit()
-    result = await log_stats_by_condition(db)
+    result = await log_stats_overall(db)
     by_key = {m["key"]: m for m in result["metrics"]}
     # Should not raise; every key just has n=0
-    assert by_key["log_help_risk_panel"]["plain"]["n"] == 0
+    assert by_key["log_help_risk_panel"]["n"] == 0
 
 
 # ---------------------------------------------------------------------------

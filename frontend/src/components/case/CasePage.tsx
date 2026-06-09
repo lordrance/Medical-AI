@@ -7,7 +7,6 @@ import {
   RefreshCcw,
   Send,
   Loader2,
-  AlertOctagon,
   FileText,
   ChevronDown,
   ChevronUp,
@@ -21,7 +20,6 @@ import type {
   ActionReasonCode,
   CasePayload,
   ClientStats,
-  Condition,
   InteractionMetrics,
   CaseEmbeddedSurvey,
   SelectedAction,
@@ -56,7 +54,6 @@ const QUICK_ITEMS = [
 
 export interface CasePageProps {
   casePayload: CasePayload;
-  condition: Condition;
   progressCurrent: number;
   progressTotal: number;
   practiceBanner?: boolean;
@@ -79,7 +76,6 @@ export interface CasePageProps {
 export function CasePage(props: CasePageProps) {
   const {
     casePayload,
-    condition,
     progressCurrent,
     progressTotal,
     practiceBanner,
@@ -89,11 +85,9 @@ export function CasePage(props: CasePageProps) {
   } = props;
 
   const chartExpandCountRef = useRef(0);
-  const guardrailExpandCountRef = useRef(0);
   const draftSourceSwitchCountRef = useRef(0);
   const chartEverViewedRef = useRef(false);
-  const guardrailEverViewedRef = useRef(false);
-  const lastSectionRef = useRef<"chart" | "guardrail" | "draft" | null>(null);
+  const lastSectionRef = useRef<"chart" | "draft" | null>(null);
   const startedAtRef = useRef<number>(Date.now());
   const firstClickRef = useRef<number | null>(null);
   const panelClicksRef = useRef<Record<string, number>>({});
@@ -122,19 +116,14 @@ export function CasePage(props: CasePageProps) {
   const [submitting, setSubmitting] = useState(false);
   const [validationMsg, setValidationMsg] = useState<string | null>(null);
   const [chartExpanded, setChartExpanded] = useState(false);
-  const [guardrailExpanded, setGuardrailExpanded] = useState(false);
   const [sendAsIsAck, setSendAsIsAck] = useState(false);
 
-  function noteSectionFocus(section: "chart" | "guardrail" | "draft") {
+  function noteSectionFocus(section: "chart" | "draft") {
     const prev = lastSectionRef.current;
-    const curSource = section === "chart" || section === "guardrail";
-    const prevSource =
-      prev === "chart" || prev === "guardrail";
-    if (
-      prev !== null &&
-      prev !== section &&
-      (curSource !== prevSource)
-    ) {
+    // V4: only chart vs. draft remains (guardrail panel removed). A switch
+    // between the two source contexts still counts toward
+    // draft_source_context_switch for behavioural analysis continuity.
+    if (prev !== null && prev !== section) {
       draftSourceSwitchCountRef.current += 1;
       onLogEvent?.("draft_source_context_switch", {
         caseId: casePayload.id,
@@ -151,18 +140,6 @@ export function CasePage(props: CasePageProps) {
         chartExpandCountRef.current += 1;
         chartEverViewedRef.current = true;
         onLogEvent?.("chart_expanded", { caseId: casePayload.id });
-      }
-      return next;
-    });
-  }
-
-  function toggleGuardrailExpand() {
-    setGuardrailExpanded((was) => {
-      const next = !was;
-      if (next && !was) {
-        guardrailExpandCountRef.current += 1;
-        guardrailEverViewedRef.current = true;
-        onLogEvent?.("help_risk_panel_expanded", { caseId: casePayload.id });
       }
       return next;
     });
@@ -190,20 +167,17 @@ export function CasePage(props: CasePageProps) {
     setQuick({});
     setValidationMsg(null);
     chartExpandCountRef.current = 0;
-    guardrailExpandCountRef.current = 0;
     draftSourceSwitchCountRef.current = 0;
     chartEverViewedRef.current = false;
-    guardrailEverViewedRef.current = false;
     lastSectionRef.current = null;
     setChartExpanded(false);
-    setGuardrailExpanded(false);
     setSendAsIsAck(false);
     draftScrollEventsRef.current = 0;
     draftMaxScrollRatioRef.current = 0;
     draftFocusStartedAtRef.current = null;
     draftDwellMsRef.current = 0;
     onLogEvent?.("case_view_start", { caseId: casePayload.id });
-  }, [casePayload.id, casePayload.guardrail]);
+  }, [casePayload.id]);
 
   // page blur / focus
   useEffect(() => {
@@ -300,10 +274,12 @@ export function CasePage(props: CasePageProps) {
           : editorText;
     const interactionMetrics: InteractionMetrics = {
       chartExpandToggleCount: chartExpandCountRef.current,
-      guardrailExpandToggleCount: guardrailExpandCountRef.current,
+      // V4: guardrail panel removed; placeholder values kept so the backend
+      // InteractionMetrics schema stays stable across V3/V4 data sets.
+      guardrailExpandToggleCount: 0,
       draftSourceSwitchCount: draftSourceSwitchCountRef.current,
       chartEverExpandedToView: chartEverViewedRef.current,
-      guardrailEverExpandedToView: guardrailEverViewedRef.current,
+      guardrailEverExpandedToView: false,
       sendAsIsAcknowledged: selected === "send_as_is" ? sendAsIsAck : false,
     };
     const clientStats: ClientStats = {
@@ -374,10 +350,6 @@ export function CasePage(props: CasePageProps) {
             : zh.caseUI.formalProgressHint(progressCurrent, progressTotal)}
         </span>
       </div>
-      <div className="text-xs text-muted-foreground">
-        {zh.caseUI.condition(condition)}
-      </div>
-
       {!showQuick && (
         <>
           <Section
@@ -423,26 +395,6 @@ export function CasePage(props: CasePageProps) {
               </div>
             )}
           </section>
-
-          {condition === "guardrail" && casePayload.guardrail && (
-            <GuardrailPanel
-              guardrail={casePayload.guardrail}
-              caseId={casePayload.id}
-              expanded={guardrailExpanded}
-              onToggleExpand={() => {
-                recordFirstClick();
-                bumpPanel("guardrail_panel");
-                onLogEvent?.("panel_clicked", { panel: "guardrail_panel" });
-                toggleGuardrailExpand();
-              }}
-              onPanelClick={(p) => {
-                recordFirstClick();
-                bumpPanel(p);
-              }}
-              onLogEvent={onLogEvent}
-              onSectionFocus={() => noteSectionFocus("guardrail")}
-            />
-          )}
 
           <Section
             title={zh.caseUI.aiDraft}
@@ -812,80 +764,3 @@ function ChartSnapshot({ snapshot }: { snapshot: Record<string, unknown> }) {
   );
 }
 
-function GuardrailPanel({
-  guardrail,
-  caseId,
-  expanded,
-  onToggleExpand,
-  onPanelClick,
-  onLogEvent,
-  onSectionFocus,
-}: {
-  guardrail: NonNullable<CasePayload["guardrail"]>;
-  caseId: string;
-  expanded: boolean;
-  onToggleExpand: () => void;
-  onPanelClick: (panel: string) => void;
-  onLogEvent?: (t: string, p?: Record<string, unknown>) => void;
-  onSectionFocus: () => void;
-}) {
-  return (
-    <section className="guardrail-panel">
-      <button
-        type="button"
-        className="mb-3 flex w-full items-center justify-between gap-2 text-left text-sm font-semibold uppercase tracking-wide text-accent-foreground"
-        onClick={onToggleExpand}
-      >
-        <span className="flex items-center gap-2">
-          <AlertOctagon className="h-4 w-4 text-accent" />
-          {zh.caseUI.guardrailTitle}
-        </span>
-        {expanded ? (
-          <ChevronUp className="h-4 w-4 shrink-0" />
-        ) : (
-          <ChevronDown className="h-4 w-4 shrink-0" />
-        )}
-      </button>
-
-      {expanded && (
-        <div
-          tabIndex={0}
-          role="region"
-          aria-label={zh.caseUI.guardrailTitle}
-          onFocus={onSectionFocus}
-          className="space-y-4"
-        >
-          <div
-            onClick={() => {
-              onPanelClick("facts_panel");
-              onLogEvent?.("panel_clicked", { panel: "facts_panel", caseId });
-            }}
-          >
-            <p className="mb-1.5 flex items-center gap-1 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-              <FileText className="h-3.5 w-3.5" />
-              {zh.caseUI.factsUsed}
-            </p>
-            <ul className="list-disc space-y-1 pl-5 text-sm">
-              {guardrail.factsUsed.map((f, i) => (
-                <li key={i}>{f}</li>
-              ))}
-            </ul>
-          </div>
-
-          <div
-            onClick={() => {
-              onPanelClick("risk_panel");
-              onLogEvent?.("panel_clicked", { panel: "risk_panel", caseId });
-            }}
-          >
-            <p className="mb-1.5 flex items-center gap-1 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-              <AlertTriangle className="h-3.5 w-3.5" />
-              {zh.caseUI.riskCue}
-            </p>
-            <p className="rounded-md bg-card/80 px-3 py-2 text-sm">{guardrail.riskCue}</p>
-          </div>
-        </div>
-      )}
-    </section>
-  );
-}

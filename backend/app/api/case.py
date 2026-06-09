@@ -12,7 +12,7 @@ from app.db.models import Action, Case, CasePresentation, Participant, Session
 from app.llm.base import LLMUnavailable
 from app.llm.factory import get_provider
 from app.llm.prompts import load_prompt, render_template
-from app.schemas.case import CasePayload, CaseResponse, GuardrailContent
+from app.schemas.case import CasePayload, CaseResponse
 from app.services.llm_audit import record_llm_call
 
 router = APIRouter(prefix="/api/case", tags=["case"])
@@ -130,11 +130,12 @@ async def get_case(
     if case is None:
         raise HTTPException(404, "Case not found")
 
-    is_guardrail = participant.condition == "guardrail"
+    # V4: single-condition study — no guardrail panel is shown to participants
+    # regardless of participant.condition. The guardrail seed data is retained
+    # in the DB as research metadata (factsUsed / riskCue / checklist).
+    # _generate_ai_risk_tip is now dead code but the function is kept for future
+    # restoration; this endpoint no longer invokes it.
     ai_draft = await _generate_case_draft(case, db)
-    risk_for_guardrail = (
-        await _generate_ai_risk_tip(case, db) if is_guardrail else case.risk_cue
-    )
 
     return CaseResponse(
         case=CasePayload(
@@ -144,15 +145,7 @@ async def get_case(
             patientMessage=case.patient_message,
             chartSnapshot=case.chart_snapshot,
             aiDraft=ai_draft,
-            guardrail=(
-                GuardrailContent(
-                    factsUsed=case.facts_used,
-                    riskCue=risk_for_guardrail,
-                    checklist=[],
-                )
-                if is_guardrail
-                else None
-            ),
+            guardrail=None,
         )
     )
 

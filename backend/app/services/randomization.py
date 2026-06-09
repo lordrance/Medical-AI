@@ -5,6 +5,13 @@ from typing import Iterable
 
 
 def assign_condition(rng: random.Random | None = None) -> str:
+    """V3 random plain/guardrail assignment.
+
+    Deprecated in V4 (single-condition study). Kept for archival / replay
+    of V3 sessions and for tests that still exercise the V3 contract.
+    The V4 session creator wires `condition="single"` directly and does
+    not call this function.
+    """
     r = rng or random
     return "plain" if r.random() < 0.5 else "guardrail"
 

@@ -179,26 +179,19 @@ async def _fetch_llm_calls():
         return (await s.execute(select(LLMCall))).scalars().all()
 
 
-async def _start_guardrail_session(client: AsyncClient) -> dict:
-    for _ in range(30):
-        s = (await client.post("/api/session")).json()
-        if s["condition"] == "guardrail":
-            return s
-    raise AssertionError("Could not draw a guardrail session in 30 tries")
-
-
 @pytest.mark.asyncio
 async def test_case_render_audits_llm_call_even_when_provider_disabled(
     client: AsyncClient,
 ) -> None:
-    """Bug #1 regression: participant-side LLM calls must be recorded in llm_calls,
-    even when the provider is disabled and the system falls back to seeded text.
-    Otherwise token usage / failure rates can't be audited for the study."""
+    """Bug #1 regression: participant-side case_draft LLM calls must be
+    recorded in llm_calls even when the provider is disabled and the system
+    falls back to seeded text. (Note: V4 removes the guardrail panel so
+    risk_tip is no longer triggered — only case_draft remains.)"""
     _set_settings(LLM_PROVIDER="disabled")
-    s = await _start_guardrail_session(client)
+    s = (await client.post("/api/session")).json()
 
     # case_practice is the only non-defect case in the seed (defect_present=False),
-    # so it exercises BOTH _generate_case_draft and _generate_ai_risk_tip.
+    # so it actually exercises _generate_case_draft.
     r = await client.get(
         f"/api/case/case_practice?sessionId={s['sessionId']}"
     )
@@ -207,8 +200,9 @@ async def test_case_render_audits_llm_call_even_when_provider_disabled(
     calls = await _fetch_llm_calls()
     purposes = {c.purpose for c in calls}
     assert "case_draft" in purposes, "case_draft LLM call not audited"
-    assert "risk_tip" in purposes, "risk_tip LLM call not audited"
-    # All calls should be marked as errors since provider is disabled
+    # V4: guardrail panel removed; risk_tip must NOT be invoked anymore.
+    assert "risk_tip" not in purposes, "risk_tip should not fire in V4"
+    # The case_draft call should be marked as an error since provider is disabled
     for c in calls:
         assert c.error, f"expected error recorded for {c.purpose}, got empty"
         assert c.provider == "disabled"
@@ -217,19 +211,19 @@ async def test_case_render_audits_llm_call_even_when_provider_disabled(
 @pytest.mark.asyncio
 async def test_defect_case_skips_case_draft_llm_call(client: AsyncClient) -> None:
     """For defect_present cases we MUST NOT invoke the LLM for case_draft
-    (otherwise the model would 'fix' the seeded flaw). But guardrail risk_tip
-    still runs and must be audited.
+    (otherwise the model would 'fix' the seeded flaw).
 
     case_06 is the V3 single-escalation case with defectPresent=true."""
     _set_settings(LLM_PROVIDER="disabled")
-    s = await _start_guardrail_session(client)
+    s = (await client.post("/api/session")).json()
     r = await client.get(f"/api/case/case_06?sessionId={s['sessionId']}")
     assert r.status_code == 200
 
     calls = await _fetch_llm_calls()
     purposes = [c.purpose for c in calls]
     assert "case_draft" not in purposes, "defect case must skip case_draft LLM"
-    assert "risk_tip" in purposes
+    # V4: no risk_tip invocation at all
+    assert "risk_tip" not in purposes
 
 
 @pytest.mark.asyncio

@@ -48,10 +48,6 @@ export const zh = {
     caseIdLabel: "案例编号",
     formalProgressHint: (i: number, n: number) => `正式进度：第 ${i} 题 / 共 ${n} 题`,
     practiceProgressHint: "练习案例（不计入正式进度）",
-    condition: (c: string) =>
-      c === "guardrail"
-        ? "实验组：护栏界面（含 AI 总结与 AI 风险提示）"
-        : "对照组：不展示护栏区（仅患者消息、病历摘要与 AI 草稿）",
     patientMessage: "患者消息",
     chartSnapshot: "病历摘要",
     chartExpand: "展开病历摘要",
@@ -60,10 +56,6 @@ export const zh = {
     sendAsIsAckLabel:
       "原样发送前请确认：我已核对 AI 草稿与病历摘要等信息，再决定是否发送。",
     sendAsIsAckRequired: "若选择原样发送，请先勾选上述核对确认。",
-    guardrailTitle: "护栏面板（仅本组可见）",
-    factsUsed: "AI 总结",
-    riskCue: "AI 风险提示",
-    checklist: "核查清单",
     actionsHeading: "请选择处理方式",
     finalReplyLabel: "最终回复内容",
     finalReplyHelpEdit: "已用 AI 草稿预填，可在此基础上修改",

@@ -7,7 +7,11 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import db_session
 from app.db.models import Case, OrderTemplate, Participant, Session, UiEvent
-from app.services.randomization import assign_condition, pick_order_template_id
+from app.services.randomization import pick_order_template_id
+
+# V4: single-condition study. condition field retained on Participant /
+# session_started UiEvent for schema continuity but always "single".
+SINGLE_CONDITION: str = "single"
 
 router = APIRouter(prefix="/api/session", tags=["session"])
 
@@ -36,7 +40,7 @@ async def create_session(db: AsyncSession = Depends(db_session)) -> SessionCreat
     if practice is None:
         raise HTTPException(500, "Practice case missing")
 
-    condition = assign_condition()
+    condition = SINGLE_CONDITION
 
     participant = Participant(condition=condition, order_template_id=template_id)
     db.add(participant)

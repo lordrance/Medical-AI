@@ -22,7 +22,7 @@ from app.services.analysis import (
     active_sessions,
     completion_timeseries,
     llm_call_stats,
-    log_stats_by_condition,
+    log_stats_overall,
     ui_event_frequency,
 )
 
@@ -48,12 +48,12 @@ async def get_timeseries(
     return await completion_timeseries(db, bucket=bucket, window_hours=window_hours)
 
 
-@router.get("/log-by-condition")
-async def get_log_by_condition(
+@router.get("/log-overall")
+async def get_log_overall(
     request: Request, db: AsyncSession = Depends(db_session)
 ) -> dict:
     require_admin(request)
-    return await log_stats_by_condition(db)
+    return await log_stats_overall(db)
 
 
 @router.get("/ui-events")
@@ -85,7 +85,7 @@ async def get_overview(
     return {
         "llmStats": await llm_call_stats(db),
         "timeseries": await completion_timeseries(db, bucket="hour"),
-        "logByCondition": await log_stats_by_condition(db),
-        "uiEvents": await ui_event_frequency(db, by="condition"),
+        "logOverall": await log_stats_overall(db),
+        "uiEvents": await ui_event_frequency(db, by="none"),
         "activeSessions": await active_sessions(db),
     }

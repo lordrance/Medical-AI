@@ -29,40 +29,26 @@ async def _start_session(client: AsyncClient) -> dict:
 
 
 @pytest.mark.asyncio
-async def test_session_creates_with_random_condition_and_template(client: AsyncClient) -> None:
+async def test_session_creates_with_single_condition_and_template(client: AsyncClient) -> None:
+    """V4 is a single-condition study; every session is condition='single'."""
     s = await _start_session(client)
     assert s["sessionId"]
     assert s["participantId"]
-    assert s["condition"] in ("plain", "guardrail")
+    assert s["condition"] == "single"
     assert 1 <= s["orderTemplateId"] <= 4
     assert len(s["caseOrder"]) == 8
     assert s["practiceCaseId"] == "case_practice"
 
 
 @pytest.mark.asyncio
-async def test_case_endpoint_filters_by_condition(client: AsyncClient) -> None:
-    # repeatedly create until we see both conditions, then assert each
-    seen_conditions = {}
-    for _ in range(20):
-        s = await _start_session(client)
-        if s["condition"] not in seen_conditions:
-            seen_conditions[s["condition"]] = s
-        if len(seen_conditions) == 2:
-            break
-    assert "plain" in seen_conditions and "guardrail" in seen_conditions
-
-    plain = seen_conditions["plain"]
-    rp = await client.get(f"/api/case/case_01?sessionId={plain['sessionId']}")
-    assert rp.status_code == 200
-    p_case = rp.json()["case"]
-    assert p_case.get("guardrail") is None
-
-    guard = seen_conditions["guardrail"]
-    rg = await client.get(f"/api/case/case_01?sessionId={guard['sessionId']}")
-    assert rg.status_code == 200
-    g_case = rg.json()["case"]
-    assert g_case["guardrail"] is not None
-    assert "checklist" in g_case["guardrail"]
+async def test_case_endpoint_never_returns_guardrail_panel(client: AsyncClient) -> None:
+    """V4: guardrail panel is fully removed from the participant UI; the case
+    payload's guardrail field must always be None regardless of session."""
+    s = await _start_session(client)
+    r = await client.get(f"/api/case/case_01?sessionId={s['sessionId']}")
+    assert r.status_code == 200
+    case_payload = r.json()["case"]
+    assert case_payload.get("guardrail") is None
 
 
 @pytest.mark.asyncio
