@@ -1,6 +1,6 @@
 "use client";
 
-import { getApiBase } from "@/lib/api/client";
+import { buildFetchUrl } from "@/lib/api/client";
 
 /** Fire-and-forget UI event logger. UI must never block on it. */
 export function logEvent(
@@ -16,7 +16,7 @@ export function logEvent(
     casePresentationId,
     clientTs: new Date().toISOString(),
   });
-  const url = `${getApiBase()}/api/ui-event`;
+  const url = buildFetchUrl("/api/ui-event");
   try {
     if (typeof navigator !== "undefined" && navigator.sendBeacon) {
       const blob = new Blob([body], { type: "application/json" });

@@ -18,7 +18,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Mic, Square, Loader2, CheckCircle2, AlertTriangle } from "lucide-react";
 import { cn } from "@/lib/cn";
-import { getApiBase } from "@/lib/api/client";
+import { buildFetchUrl } from "@/lib/api/client";
 
 type Status = "idle" | "recording" | "uploading" | "done" | "error";
 
@@ -84,7 +84,7 @@ export function VoiceRecorderButton({
         fd.append("questionId", questionId);
         fd.append("durationMs", String(durationMs));
         fd.append("audio", blob, `recording.${extFromMime(blob.type)}`);
-        const r = await fetch(`${getApiBase()}/api/voice-recording`, {
+        const r = await fetch(buildFetchUrl("/api/voice-recording"), {
           method: "POST",
           body: fd,
         });
