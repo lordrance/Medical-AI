@@ -12,7 +12,11 @@ import {
   ChevronUp,
 } from "lucide-react";
 import { Likert } from "@/components/Likert";
-import { VoiceInputButton } from "@/components/VoiceInputButton";
+// V4: Web Speech API speech-to-text disabled — Chrome's
+// webkitSpeechRecognition uses Google's cloud STT, unreachable in
+// mainland China. Restore by uncommenting both this import and the 3
+// JSX usages below in this file.
+// import { VoiceInputButton } from "@/components/VoiceInputButton";
 import { ProgressBar } from "@/components/ProgressBar";
 import { cn } from "@/lib/cn";
 import { zh } from "@/lib/i18n/zh-CN";
@@ -537,6 +541,7 @@ export function CasePage(props: CasePageProps) {
                 <div>
                   <div className="mb-2 flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
                     <label className="label flex-1">{zh.escalateReason.label}</label>
+                    {/* V4: VoiceInputButton disabled (see file header).
                     <VoiceInputButton
                       className="shrink-0"
                       value={escalateReason}
@@ -557,7 +562,7 @@ export function CasePage(props: CasePageProps) {
                           },
                         );
                       }}
-                    />
+                    /> */}
                   </div>
                   <textarea
                     className="textarea min-h-[100px]"
@@ -587,6 +592,7 @@ export function CasePage(props: CasePageProps) {
                         : zh.caseUI.finalReplyHelpRewrite}
                     </span>
                   </label>
+                  {/* V4: VoiceInputButton disabled (see file header).
                   <VoiceInputButton
                     className="shrink-0"
                     value={editorText}
@@ -605,7 +611,7 @@ export function CasePage(props: CasePageProps) {
                         },
                       );
                     }}
-                  />
+                  /> */}
                 </div>
                 <textarea
                   className="textarea"
@@ -672,6 +678,7 @@ export function CasePage(props: CasePageProps) {
                   <label className="label flex-1 text-sm font-medium">
                     {zh.caseUI.actionReasonOtherHeading}
                   </label>
+                  {/* V4: VoiceInputButton disabled (see file header).
                   <VoiceInputButton
                     className="shrink-0"
                     value={actionReasonText}
@@ -691,7 +698,7 @@ export function CasePage(props: CasePageProps) {
                         },
                       );
                     }}
-                  />
+                  /> */}
                 </div>
                 <textarea
                   className="textarea min-h-[72px]"

@@ -4,7 +4,11 @@ import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 import { Loader2 } from "lucide-react";
 import { Likert } from "@/components/Likert";
-import { VoiceInputButton } from "@/components/VoiceInputButton";
+// V4: Web Speech API speech-to-text disabled. Chrome's webkitSpeechRecognition
+// uses Google's cloud STT service, which is unreachable in mainland China.
+// Component source kept at frontend/src/components/VoiceInputButton.tsx for
+// possible future restoration via a domestic STT backend.
+// import { VoiceInputButton } from "@/components/VoiceInputButton";
 import { VoiceRecorderButton } from "@/components/VoiceRecorderButton";
 import { api } from "@/lib/api/client";
 import type { PostSurveyResponse } from "@/lib/api/types";
@@ -85,6 +89,10 @@ export default function PostSurveyPage() {
                 <div key={it.id}>
                   <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
                     <label className="label flex-1 whitespace-pre-line">{it.text}</label>
+                    {/* V4: VoiceInputButton (Web Speech API → Google STT)
+                        removed; mainland China cannot reach the Google
+                        service. Restore by re-importing VoiceInputButton
+                        in this file and the JSX below.
                     <VoiceInputButton
                       className="shrink-0"
                       value={(answers[it.id] as string) ?? ""}
@@ -92,7 +100,7 @@ export default function PostSurveyPage() {
                         setAnswers({ ...answers, [it.id]: next })
                       }
                       disabled={busy}
-                    />
+                    /> */}
                   </div>
                   <textarea
                     className="textarea mt-2 min-h-[140px]"
