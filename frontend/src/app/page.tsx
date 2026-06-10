@@ -23,7 +23,7 @@ export default function HomePage() {
           <Pill icon={<ShieldCheck className="h-4 w-4" />}>
             数据脱敏存储 · 仅用于学术研究
           </Pill>
-          <Pill icon={<Clock className="h-4 w-4" />}>预计耗时 28–32 分钟</Pill>
+          <Pill icon={<Clock className="h-4 w-4" />}>预计耗时 15–20 分钟</Pill>
         </div>
         <div className="mt-7 rounded-md border border-accent/40 bg-accent/5 p-4 text-sm text-foreground/80">
           {zh.home.notMedical}
