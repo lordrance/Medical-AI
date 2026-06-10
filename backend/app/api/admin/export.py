@@ -163,6 +163,7 @@ async def _load_table(table: str, db: AsyncSession) -> Any:
         rows = (await db.execute(select(Participant))).scalars().all()
         return [
             {
+                "completion_code": f"AIDR-{r.id[-8:].upper()}" if r.completed_flag else None,
                 "participant_id": r.id,
                 "condition": r.condition,
                 "order_template_id": r.order_template_id,
