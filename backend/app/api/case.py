@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-import json
+from datetime import datetime, timezone
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel, Field
@@ -9,100 +9,22 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import db_session
 from app.db.models import Action, Case, CasePresentation, Participant, Session
-from app.llm.base import LLMUnavailable
-from app.llm.factory import get_provider
-from app.llm.prompts import load_prompt, render_template
 from app.schemas.case import CasePayload, CaseResponse
-from app.services.llm_audit import record_llm_call
 
 router = APIRouter(prefix="/api/case", tags=["case"])
 
 
-async def _generate_ai_risk_tip(case: Case, db: AsyncSession) -> str:
-    """LLM-generated AI risk tip; fallback to seeded risk_cue."""
-    provider = get_provider()
-    system, user_tpl = load_prompt("risk_tip")
-    user = render_template(
-        user_tpl,
-        {
-            "patientMessage": case.patient_message,
-            "chartSnapshotJson": json.dumps(
-                case.chart_snapshot, ensure_ascii=False, indent=2
-            ),
-            "factsUsedJson": json.dumps(case.facts_used, ensure_ascii=False),
-        },
-    )
-    try:
-        resp = await provider.generate(system=system, user=user, max_tokens=256)
-    except LLMUnavailable as e:
-        await record_llm_call(
-            db,
-            purpose="risk_tip",
-            provider=provider.name,
-            model=provider.model,
-            prompt_text=user[:4000],
-            response_text="",
-            prompt_tokens=None,
-            completion_tokens=None,
-            latency_ms=0,
-            error=str(e),
-        )
-        return case.risk_cue
-
-    await record_llm_call(
-        db,
-        purpose="risk_tip",
-        provider=resp.provider,
-        model=resp.model,
-        prompt_text=user[:4000],
-        response_text=resp.text,
-        prompt_tokens=resp.prompt_tokens,
-        completion_tokens=resp.completion_tokens,
-        latency_ms=resp.latency_ms,
-    )
-    text = (resp.text or "").strip()
-    return text if text else case.risk_cue
-
-
-async def _generate_case_draft(case: Case, db: AsyncSession) -> str:
-    """V4: always return the seeded `ai_draft` verbatim.
-
-    The V4 study design requires every participant to see the same fixed
-    AI draft for each case (otherwise the AI text becomes an uncontrolled
-    variable). The LLM provider plumbing, prompts, audit logging, and the
-    V3 "use LLM for non-defect, seed for defect" branch are intentionally
-    preserved below (commented out via early return) so a future revision
-    can re-enable live drafting without re-implementing the path.
-    """
-    return case.ai_draft
-
-    # --- V3 live-LLM path retained for archival reference -----------------
-    # if case.defect_present:
-    #     return case.ai_draft
-    # provider = get_provider()
-    # system, user_tpl = load_prompt("case_draft")
-    # user = render_template(
-    #     user_tpl,
-    #     {
-    #         "patientMessage": case.patient_message,
-    #         "chartSnapshotJson": json.dumps(case.chart_snapshot, ensure_ascii=False, indent=2),
-    #     },
-    # )
-    # try:
-    #     resp = await provider.generate(system=system, user=user, max_tokens=512)
-    # except LLMUnavailable as e:
-    #     await record_llm_call(db, purpose="case_draft", provider=provider.name,
-    #                           model=provider.model, prompt_text=user[:4000],
-    #                           response_text="", prompt_tokens=None,
-    #                           completion_tokens=None, latency_ms=0, error=str(e))
-    #     return case.ai_draft
-    # await record_llm_call(db, purpose="case_draft", provider=resp.provider,
-    #                       model=resp.model, prompt_text=user[:4000],
-    #                       response_text=resp.text,
-    #                       prompt_tokens=resp.prompt_tokens,
-    #                       completion_tokens=resp.completion_tokens,
-    #                       latency_ms=resp.latency_ms)
-    # return resp.text
+# V4 design constraint: the AI draft shown to every participant for a given
+# case must be byte-identical, otherwise the AI text becomes an uncontrolled
+# experimental variable. So we never invoke the LLM during participant case
+# rendering — we return the seeded `ai_draft` verbatim. The V3 live-LLM
+# implementation (provider invocation, prompt rendering, llm_calls audit
+# rows for case_draft / risk_tip) lives in git history at the V3 tag if a
+# future revision needs to restore it.
+#
+# The guardrail UI is also intentionally not rendered (single-condition
+# study), so factsUsed / riskCue / checklist seed data is exported as
+# research metadata but not surfaced to participants.
 
 
 @router.get("/{case_id}", response_model=CaseResponse)
@@ -122,13 +44,6 @@ async def get_case(
     if case is None:
         raise HTTPException(404, "Case not found")
 
-    # V4: single-condition study — no guardrail panel is shown to participants
-    # regardless of participant.condition. The guardrail seed data is retained
-    # in the DB as research metadata (factsUsed / riskCue / checklist).
-    # _generate_ai_risk_tip is now dead code but the function is kept for future
-    # restoration; this endpoint no longer invokes it.
-    ai_draft = await _generate_case_draft(case, db)
-
     return CaseResponse(
         case=CasePayload(
             id=case.id,
@@ -136,7 +51,7 @@ async def get_case(
             riskLevel=case.risk_level,
             patientMessage=case.patient_message,
             chartSnapshot=case.chart_snapshot,
-            aiDraft=ai_draft,
+            aiDraft=case.ai_draft,
             guardrail=None,
         )
     )
@@ -181,8 +96,6 @@ async def open_case(
         existing.order_index = body.orderIndex
         await db.commit()
         return CaseOpenOut(casePresentationId=existing.id)
-
-    from datetime import datetime, timezone
 
     now = datetime.now(timezone.utc)
     pres = CasePresentation(

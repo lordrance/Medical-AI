@@ -59,8 +59,9 @@ These are easy to break by accident and break the research, not just the code.
 
 ### A. LLM call rules (research validity)
 
-- **Never call the LLM on a `defect_present=True` case for `case_draft`.** The seeded `aiDraft` for these cases contains an intentional flaw — the experiment depends on showing it as-is to the participant. Letting the LLM rewrite it silently "fixes" the flaw and invalidates that case. Enforced by [`app/api/case.py:_generate_case_draft`](backend/app/api/case.py); regression test [`test_defect_case_skips_case_draft_llm_call`](backend/tests/test_llm.py).
-- **Every LLM call must go through `services/llm_audit.record_llm_call`**, on both success and failure paths. This populates `llm_calls` so researchers can audit token usage, error rate, and provider behaviour. Skipping audit on the error path is the bug I fixed in [bc933f9](https://github.com/lordrance/Medical-AI/commit/bc933f9); don't reintroduce it.
+- **V4 rule: the participant flow MUST NOT invoke the LLM at all.** Every participant must see the same seeded `aiDraft` for every case, otherwise the AI text becomes an uncontrolled experimental variable. [`app/api/case.py`](backend/app/api/case.py) returns `case.ai_draft` verbatim with no provider call. Regression: [`test_case_render_never_calls_llm_in_v4`](backend/tests/test_llm.py) asserts `llm_calls` stays empty across both defect and non-defect case loads.
+- **Admin-side LLM endpoints still exist** (`/api/admin/llm/cohort-summary`, `/api/admin/llm/participant-summary`, `/api/admin/llm/case-draft`) for researcher-side report generation. These remain bound by: **every LLM call must go through `services/llm_audit.record_llm_call`** on both success and failure paths. Skipping audit on the error path is the bug I fixed in [bc933f9](https://github.com/lordrance/Medical-AI/commit/bc933f9); don't reintroduce it.
+- If a future revision re-enables live LLM drafting on the participant side, recover the implementation from the V3 tag at [`backend/app/api/case.py`](https://github.com/lordrance/Medical-AI/blob/V3/backend/app/api/case.py) — don't reinvent it.
 
 ### B. Questionnaire 7.0 field naming
 
