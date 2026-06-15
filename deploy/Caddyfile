@@ -1,0 +1,78 @@
+# Caddy reverse proxy for Medical-AI production.
+#
+# Routes:
+#   /api/*  → FastAPI backend on internal port 8000
+#   /*      → Next.js frontend on internal port 3000
+#
+# TLS:
+#   Caddy automatically obtains and renews a free Let's Encrypt certificate
+#   for SITE_DOMAIN. Works out of the box for any public hostname that
+#   resolves to this server — including nip.io / sslip.io magic hostnames
+#   (e.g. 43-155-12-34.nip.io) so you don't have to buy a real domain.
+#
+# Body size:
+#   Voice recordings can be up to 50 MB (see app/api/voice_recording.py).
+#   Default Caddy body limit is 10 MB; we raise it on the upload endpoint
+#   only to keep the rest of the API tight.
+
+{$SITE_DOMAIN} {
+    # Caddy auto-provisions Let's Encrypt certificates by default — no
+    # `tls` directive needed for the happy path. (We used to have
+    # `tls {$ACME_EMAIL}` here, which broke when ACME_EMAIL was empty
+    # because `tls` with no argument is a parse error.)
+
+    # 50 MB on the voice upload endpoint only.
+    @upload path /api/voice-recording
+    request_body @upload {
+        max_size 50MB
+    }
+
+    # 10 MB everywhere else (Caddy default, but make it explicit).
+    request_body {
+        max_size 10MB
+    }
+
+    # FastAPI lives under /api/*. The backend mounts routes already
+    # prefixed with /api, so we use `handle` (preserves the path) rather
+    # than `handle_path` (which would strip /api/* and break the routes).
+    handle /api/* {
+        reverse_proxy backend:8000 {
+            header_up Host {host}
+            header_up X-Forwarded-For {remote_host}
+            header_up X-Forwarded-Proto {scheme}
+        }
+    }
+
+    # Backend also exposes /healthz at the top level.
+    handle /healthz {
+        reverse_proxy backend:8000
+    }
+
+    # Everything else → Next.js
+    handle {
+        reverse_proxy frontend:3000 {
+            header_up Host {host}
+            header_up X-Forwarded-For {remote_host}
+            header_up X-Forwarded-Proto {scheme}
+        }
+    }
+
+    # Access log to docker stdout — viewable via `docker compose logs caddy`.
+    log {
+        output stdout
+        format console
+    }
+
+    # Basic security headers; nothing fancy.
+    header {
+        # Don't reveal we're on Caddy.
+        -Server
+        # Avoid clickjacking by other origins.
+        X-Frame-Options "SAMEORIGIN"
+        # MIME-type sniffing off.
+        X-Content-Type-Options "nosniff"
+        # Strict TLS for 6 months (long enough for a study, short enough that
+        # if we delete the site participants don't get stuck on HSTS forever).
+        Strict-Transport-Security "max-age=15552000"
+    }
+}
