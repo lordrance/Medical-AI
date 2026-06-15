@@ -1,4 +1,5 @@
 // Lightweight typed fetch wrapper. Single source of base URL.
+// Retries on network errors (TypeError) with exponential backoff.
 
 const BASE = process.env.NEXT_PUBLIC_API_BASE ?? "http://localhost:8000";
 
@@ -13,6 +14,38 @@ interface Options {
 export class ApiError extends Error {
   constructor(public status: number, public body: string) {
     super(`API ${status}: ${body.slice(0, 200)}`);
+  }
+}
+
+/** Small sleep for exponential backoff between retries. */
+function sleep(ms: number): Promise<void> {
+  return new Promise((r) => setTimeout(r, ms));
+}
+
+/**
+ * Retry a fetch call up to `retries` times when it fails with a network
+ * error (TypeError). Uses exponential backoff. Does NOT retry HTTP errors
+ * (4xx / 5xx) — those are business-logic failures.
+ */
+async function fetchWithRetry(
+  url: string,
+  init: RequestInit,
+  retries: number,
+): Promise<Response> {
+  for (let attempt = 0; ; attempt++) {
+    try {
+      const r = await fetch(url, init);
+      return r; // any HTTP status is a valid response — don't retry
+    } catch (err) {
+      const isNetworkError =
+        err instanceof TypeError ||
+        (err instanceof Error && err.name === "TypeError");
+
+      if (!isNetworkError || attempt >= retries) throw err;
+
+      // Exponential backoff: 500ms, 1000ms, 2000ms, ...
+      await sleep(500 * Math.pow(2, attempt));
+    }
   }
 }
 
@@ -33,7 +66,7 @@ export async function api<T>(path: string, opts: Options = {}): Promise<T> {
   };
   if (opts.body !== undefined) init.body = JSON.stringify(opts.body);
 
-  const r = await fetch(url.toString(), init);
+  const r = await fetchWithRetry(url.toString(), init, 2);
   if (!r.ok) {
     const text = await r.text().catch(() => "");
     throw new ApiError(r.status, text);

@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import "@/styles/globals.css";
 import { zh } from "@/lib/i18n/zh-CN";
+import { ErrorBoundary } from "@/components/ErrorBoundary";
 
 export const metadata: Metadata = {
   title: zh.app.title,
@@ -32,7 +33,9 @@ export default function RootLayout({
               </p>
             </div>
           </header>
-          <main className="animate-fade-in">{children}</main>
+          <ErrorBoundary>
+            <main className="animate-fade-in">{children}</main>
+          </ErrorBoundary>
           <footer className="mt-16 border-t border-border pt-4 text-xs text-muted-foreground">
             {zh.app.footer}
           </footer>
