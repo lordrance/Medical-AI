@@ -5,7 +5,7 @@ from pydantic import BaseModel
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.api.deps import db_session
+from app.api.deps import db_session, rate_limit_session
 from app.db.models import Case, OrderTemplate, Participant, Session, UiEvent
 from app.services.randomization import pick_order_template_id
 
@@ -26,7 +26,10 @@ class SessionCreatedResponse(BaseModel):
 
 
 @router.post("", response_model=SessionCreatedResponse)
-async def create_session(db: AsyncSession = Depends(db_session)) -> SessionCreatedResponse:
+async def create_session(
+    db: AsyncSession = Depends(db_session),
+    _rate: None = Depends(rate_limit_session),
+) -> SessionCreatedResponse:
     templates = (await db.execute(select(OrderTemplate))).scalars().all()
     if not templates:
         raise HTTPException(500, "No order templates seeded")

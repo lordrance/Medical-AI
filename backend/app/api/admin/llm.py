@@ -7,7 +7,7 @@ from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.api.deps import db_session
+from app.api.deps import db_session, rate_limit_admin
 from app.core.security import require_admin
 from app.db.models import (
     CohortSummary,
@@ -59,6 +59,7 @@ async def llm_case_draft(
     request: Request,
     body: CaseDraftIn,
     db: AsyncSession = Depends(db_session),
+    _rate: None = Depends(rate_limit_admin),
 ) -> CaseDraftResponse:
     require_admin(request)
     provider = get_provider()
@@ -115,6 +116,7 @@ async def llm_participant_summary(
     request: Request,
     body: ParticipantSummaryIn,
     db: AsyncSession = Depends(db_session),
+    _rate: None = Depends(rate_limit_admin),
 ) -> SummaryResponse:
     require_admin(request)
     pt = await db.get(Participant, body.participantId)

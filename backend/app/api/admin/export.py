@@ -11,7 +11,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
-from app.api.deps import db_session
+from app.api.deps import db_session, rate_limit_admin
 from app.core.security import require_admin
 from app.db.models import (
     Action,
@@ -69,7 +69,9 @@ EXPORT_DATA_TABLES: tuple[str, ...] = (
 
 
 @router.get("/export/full-database")
-async def export_full_database(request: Request) -> Response:
+async def export_full_database(
+    request: Request, _rate: None = Depends(rate_limit_admin)
+) -> Response:
     """Download entire DB as SQL (SQLite: iterdump; Postgres: pg_dump). Admin only."""
     require_admin(request)
     try:
@@ -93,6 +95,7 @@ async def export_bundle(
         description="Comma-separated table names; omit for default study bundle.",
     ),
     db: AsyncSession = Depends(db_session),
+    _rate: None = Depends(rate_limit_admin),
 ) -> Response:
     """ZIP of CSV files for selected tables (admin only)."""
     require_admin(request)
@@ -135,6 +138,7 @@ async def export(
     table: TableName = Query("summary"),
     format: Literal["csv", "json"] = Query("csv"),
     db: AsyncSession = Depends(db_session),
+    _rate: None = Depends(rate_limit_admin),
 ) -> Response:
     require_admin(request)
     rows: Any = await _load_table(table, db)

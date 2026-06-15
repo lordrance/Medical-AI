@@ -8,6 +8,8 @@ import pytest
 import pytest_asyncio
 from httpx import ASGITransport, AsyncClient
 
+from app.middleware.rate_limiter import _session_limiter, _admin_limiter
+
 # Configure DB **before** importing the app.
 # - 默认：临时 SQLite（本地 / CI 不连 PG 时）。
 # - CI 或本地若已导出 `DATABASE_URL`（如 postgresql+asyncpg://…），则使用该库（双跑 PG 用）。
@@ -20,8 +22,15 @@ os.environ.setdefault("ADMIN_TOKEN", "test-token")
 os.environ.setdefault("LLM_PROVIDER", "disabled")
 
 from app.core.config import get_settings  # noqa: E402
+from app.core.logging import configure as configure_logging  # noqa: E402
 from app.db.base import Base  # noqa: E402
 from app.db.session import get_engine, reset_engine_for_tests  # noqa: E402
+
+# structlog must be configured before the app is imported, because
+# app/main.py registers middlewares etc. and its module-level code
+# starts hitting loggers.
+configure_logging()
+
 from app.main import app  # noqa: E402
 
 get_settings.cache_clear()  # type: ignore[attr-defined]
@@ -36,6 +45,15 @@ async def _setup_db() -> AsyncIterator[None]:
         await conn.run_sync(Base.metadata.create_all)
     yield
     await engine.dispose()
+
+
+@pytest.fixture(autouse=True)
+def _reset_rate_limiters() -> None:
+    """Reset in-memory rate limiters before each test so the test suite
+    doesn't exhaust the production-relevant quotas (10 session/hr) on
+    the first few parametrized cases."""
+    _session_limiter._buckets.clear()
+    _admin_limiter._buckets.clear()
 
 
 @pytest.fixture

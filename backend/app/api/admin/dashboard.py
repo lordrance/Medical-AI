@@ -16,7 +16,7 @@ from typing import Literal
 from fastapi import APIRouter, Depends, Query, Request
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.api.deps import db_session
+from app.api.deps import db_session, rate_limit_admin
 from app.core.security import require_admin
 from app.services.analysis import (
     active_sessions,
@@ -31,7 +31,8 @@ router = APIRouter(prefix="/api/admin/dashboard", tags=["admin-dashboard"])
 
 @router.get("/llm-stats")
 async def get_llm_stats(
-    request: Request, db: AsyncSession = Depends(db_session)
+    request: Request, db: AsyncSession = Depends(db_session),
+    _rate: None = Depends(rate_limit_admin),
 ) -> dict:
     require_admin(request)
     return await llm_call_stats(db)
@@ -43,6 +44,7 @@ async def get_timeseries(
     bucket: Literal["hour", "day"] = Query("hour"),
     window_hours: int = Query(168, ge=1, le=24 * 60),  # 1 hour to 60 days
     db: AsyncSession = Depends(db_session),
+    _rate: None = Depends(rate_limit_admin),
 ) -> list[dict]:
     require_admin(request)
     return await completion_timeseries(db, bucket=bucket, window_hours=window_hours)
@@ -50,7 +52,8 @@ async def get_timeseries(
 
 @router.get("/log-overall")
 async def get_log_overall(
-    request: Request, db: AsyncSession = Depends(db_session)
+    request: Request, db: AsyncSession = Depends(db_session),
+    _rate: None = Depends(rate_limit_admin),
 ) -> dict:
     require_admin(request)
     return await log_stats_overall(db)
@@ -61,6 +64,7 @@ async def get_ui_events(
     request: Request,
     by: Literal["condition", "case", "none"] = Query("condition"),
     db: AsyncSession = Depends(db_session),
+    _rate: None = Depends(rate_limit_admin),
 ) -> list[dict]:
     require_admin(request)
     return await ui_event_frequency(db, by=by)
@@ -76,7 +80,8 @@ async def get_active_sessions(
 
 @router.get("/overview")
 async def get_overview(
-    request: Request, db: AsyncSession = Depends(db_session)
+    request: Request, db: AsyncSession = Depends(db_session),
+    _rate: None = Depends(rate_limit_admin),
 ) -> dict:
     """One-shot bundle of all dashboard data — preferred by the frontend
     polling loop so a single 401 / network error blocks the whole UI rather
