@@ -22,10 +22,13 @@ from app.api.admin import (
     summary as admin_summary,
 )
 from app.core.config import get_settings
+from app.core.logging import configure as configure_logging
+from app.middleware.request_id import RequestIdMiddleware
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncIterator[None]:
+    configure_logging()
     yield
 
 
@@ -40,6 +43,10 @@ def create_app() -> FastAPI:
         version=settings.APP_VERSION,
         lifespan=lifespan,
     )
+
+    # RequestIdMiddleware must be outermost so every downstream handler
+    # (including CORS error responses) carries an X-Request-ID.
+    app.add_middleware(RequestIdMiddleware)
 
     app.add_middleware(
         CORSMiddleware,
