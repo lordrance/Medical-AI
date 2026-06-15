@@ -22,7 +22,9 @@ from app.api.admin import (
     summary as admin_summary,
 )
 from app.core.config import get_settings
+from app.core.exception_handlers import register_exception_handlers
 from app.core.logging import configure as configure_logging
+from app.middleware.metrics import MetricsMiddleware
 from app.middleware.request_id import RequestIdMiddleware
 
 
@@ -48,6 +50,10 @@ def create_app() -> FastAPI:
     # (including CORS error responses) carries an X-Request-ID.
     app.add_middleware(RequestIdMiddleware)
 
+    # MetricsMiddleware records request metrics to JSONL; must run after
+    # RequestIdMiddleware so it can pick up the request_id from structlog.
+    app.add_middleware(MetricsMiddleware)
+
     app.add_middleware(
         CORSMiddleware,
         allow_origins=settings.CORS_ORIGINS,
@@ -55,6 +61,8 @@ def create_app() -> FastAPI:
         allow_methods=["*"],
         allow_headers=["*"],
     )
+
+    register_exception_handlers(app)
 
     app.include_router(healthz.router)
     app.include_router(session_api.router)

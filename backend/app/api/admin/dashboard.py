@@ -18,6 +18,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import db_session, rate_limit_admin
 from app.core.security import require_admin
+from app.middleware.metrics import get_recent_metrics
 from app.services.analysis import (
     active_sessions,
     completion_timeseries,
@@ -76,6 +77,22 @@ async def get_active_sessions(
 ) -> list[dict]:
     require_admin(request)
     return await active_sessions(db)
+
+
+@router.get("/health")
+async def get_dashboard_health(
+    request: Request,
+    _rate: None = Depends(rate_limit_admin),
+) -> dict:
+    """Return request-level health metrics aggregated from the JSONL files.
+
+    Fields:
+    - ``errorRate``      — fraction of non-2xx responses in the last 60 minutes
+    - ``p95LatencyMs``   — P95 request latency in ms
+    - ``totalRequests``  — total requests in the last 60 minutes
+    """
+    require_admin(request)
+    return get_recent_metrics(lookback_seconds=3600)
 
 
 @router.get("/overview")
