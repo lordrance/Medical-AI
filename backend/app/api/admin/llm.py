@@ -16,6 +16,7 @@ from app.db.models import (
     Participant,
 )
 from app.llm.base import LLMUnavailable
+from app.llm.circuit_breaker import CircuitBreakerOpenError
 from app.llm.factory import get_provider
 from app.llm.prompts import load_prompt, render_template
 from app.services.analysis import (
@@ -104,6 +105,20 @@ async def llm_case_draft(
     )
     try:
         resp = await provider.generate(system=system, user=user, max_tokens=512)
+    except CircuitBreakerOpenError as e:
+        await _record_llm_call(
+            db,
+            purpose="case_draft",
+            provider=provider.name,
+            model=provider.model,
+            prompt_text=user[:4000],
+            response_text="",
+            prompt_tokens=None,
+            completion_tokens=None,
+            latency_ms=0,
+            error=str(e),
+        )
+        raise HTTPException(503, str(e)) from e
     except LLMUnavailable as e:
         await _record_llm_call(
             db,
@@ -177,7 +192,7 @@ async def llm_participant_summary(
     )
     try:
         resp = await provider.generate(system=system, user=user, max_tokens=600)
-    except LLMUnavailable as e:
+    except (CircuitBreakerOpenError, LLMUnavailable) as e:
         raise HTTPException(503, str(e)) from e
 
     await _record_llm_call(
@@ -221,7 +236,7 @@ async def llm_cohort_summary(
     )
     try:
         resp = await provider.generate(system=system, user=user, max_tokens=900)
-    except LLMUnavailable as e:
+    except (CircuitBreakerOpenError, LLMUnavailable) as e:
         raise HTTPException(503, str(e)) from e
 
     db.add(

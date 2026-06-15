@@ -4,12 +4,27 @@ import time
 from typing import Any
 
 import httpx
+from tenacity import (
+    AsyncRetrying,
+    retry_if_exception_type,
+    stop_after_attempt,
+    wait_exponential,
+)
 
 from app.llm.base import LLMResponse, LLMUnavailable
+from app.llm.circuit_breaker import CircuitBreaker, CircuitBreakerOpenError
+
+__all__ = ["DeepseekProvider", "CircuitBreakerOpenError"]
+
+# Module-level circuit breaker shared across all DeepSeek requests.
+_circuit_breaker = CircuitBreaker(failure_threshold=3, recovery_timeout=300.0)
 
 
 class DeepseekProvider:
-    """DeepSeek API provider (uses the OpenAI-compatible chat completions API)."""
+    """DeepSeek API provider (uses the OpenAI-compatible chat completions API).
+
+    Protected by a circuit breaker and tenacity exponential-backoff retry.
+    """
 
     name: str = "deepseek"
 
@@ -48,39 +63,74 @@ class DeepseekProvider:
             "stream": False,
         }
         url = f"{self.base_url}/chat/completions"
-        try:
-            async with httpx.AsyncClient(timeout=self.timeout_s) as client:
-                resp = await client.post(
-                    url,
-                    headers={
-                        "Authorization": f"Bearer {self.api_key}",
-                        "Content-Type": "application/json",
-                    },
-                    json=body,
-                )
-        except httpx.HTTPError as e:
-            raise LLMUnavailable(f"DeepSeek HTTP error: {e}") from e
 
-        if resp.status_code != 200:
-            raise LLMUnavailable(
-                f"DeepSeek API returned {resp.status_code}: {resp.text[:500]}"
-            )
-        try:
-            data = resp.json()
-            text = data["choices"][0]["message"]["content"]
-            usage = data.get("usage") or {}
-        except Exception as e:
-            raise LLMUnavailable(f"DeepSeek bad response shape: {e}") from e
-
-        latency = int((time.monotonic() - start) * 1000)
-        return LLMResponse(
-            text=text,
-            model=self.model,
-            provider=self.name,
-            prompt_tokens=usage.get("prompt_tokens"),
-            completion_tokens=usage.get("completion_tokens"),
-            latency_ms=latency,
+        # The circuit breaker gates the entire call.  If OPEN it raises
+        # CircuitBreakerOpenError without touching the network.
+        return await _circuit_breaker.call(
+            self._do_generate, url, body, start
         )
+
+    async def _do_generate(
+        self, url: str, body: dict[str, Any], start: float
+    ) -> LLMResponse:
+        """Inner call with tenacity retry for transient network errors only.
+
+        Tenacity behaves as follows:
+        * ``httpx.HTTPError`` is retried up to 3 attempts.
+        * Other exceptions (e.g. ``LLMUnavailable`` from a 4xx/5xx) propagate
+          immediately without retry.
+        * After 3 failed attempts the ``AsyncRetrying`` iterator re-raises the
+          last ``httpx.HTTPError``, which we convert to ``LLMUnavailable``.
+        """
+        retrier = AsyncRetrying(
+            retry=retry_if_exception_type(httpx.HTTPError),
+            wait=wait_exponential(multiplier=1, min=1, max=8),
+            stop=stop_after_attempt(3),
+            reraise=True,
+        )
+        try:
+            async for attempt in retrier:
+                with attempt:
+                    async with httpx.AsyncClient(timeout=self.timeout_s) as client:
+                        resp = await client.post(
+                            url,
+                            headers={
+                                "Authorization": f"Bearer {self.api_key}",
+                                "Content-Type": "application/json",
+                            },
+                            json=body,
+                        )
+
+                    if resp.status_code != 200:
+                        # Non-2xx: not a transient error — do NOT retry.
+                        raise LLMUnavailable(
+                            f"DeepSeek API returned {resp.status_code}: "
+                            f"{resp.text[:500]}"
+                        )
+
+                    try:
+                        data = resp.json()
+                        text = data["choices"][0]["message"]["content"]
+                        usage = data.get("usage") or {}
+                    except Exception as e:
+                        raise LLMUnavailable(
+                            f"DeepSeek bad response shape: {e}"
+                        ) from e
+
+                    latency = int((time.monotonic() - start) * 1000)
+                    return LLMResponse(
+                        text=text,
+                        model=self.model,
+                        provider=self.name,
+                        prompt_tokens=usage.get("prompt_tokens"),
+                        completion_tokens=usage.get("completion_tokens"),
+                        latency_ms=latency,
+                    )
+        except httpx.HTTPError as e:
+            # All 3 retries exhausted → translate to our domain exception.
+            raise LLMUnavailable(
+                f"DeepSeek unreachable after 3 retries: {e}"
+            ) from e
 
     async def health(self) -> bool:
         # Cheap probe: HEAD the base url; failure is acceptable.
