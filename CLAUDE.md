@@ -1,11 +1,163 @@
 # CLAUDE.md
 
-Behavioral guidelines for Claude Code working on **Medical-AI** (HCI research platform). Two sections:
+Behavioral guidelines for Claude Code working on **Medical-AI** (HCI research platform). Four sections:
 
+- **Common Commands** — build, test, lint, migrate, and other everyday commands.
+- **Architecture** — high-level structure so you can find the right file quickly.
 - **Part 1**: General coding behaviors (adapted from claude-code-bmad-foundation).
-- **Part 2**: Project-specific invariants — these are non-obvious rules whose violation breaks the research design, not just code quality.
+- **Part 2**: Project-specific invariants — non-obvious rules whose violation breaks the research design, not just code quality.
 
 I am a beginner. When you ask me questions, explain them in plain language and explain what each option means.
+
+---
+
+## Common Commands
+
+### Backend (Python / FastAPI)
+
+```bash
+# Run all tests
+cd backend && python -m pytest -q
+
+# Run a single test file
+python -m pytest tests/test_llm.py -q
+
+# Run a single test function
+python -m pytest tests/test_llm.py::test_case_render_never_calls_llm_in_v4 -q
+
+# Run tests with verbose output (shows each test name)
+python -m pytest -q -v
+
+# Create a new Alembic migration after editing models
+cd backend && alembic revision --autogenerate -m "description_of_change"
+
+# Apply pending migrations
+cd backend && alembic upgrade head
+
+# Validate seed data (case content + gold-action distribution)
+cd backend && PYTHONIOENCODING=utf-8 python -m app.scripts.validate_data
+
+# Check for dead imports only
+cd backend && python -m ruff check app --select F401
+
+# Full pre-commit check: lint + format + typecheck
+cd backend && python -m ruff check app && python -m ruff format app --check && python -m mypy app
+```
+
+### Frontend (Next.js 14 / TypeScript)
+
+```bash
+# Typecheck
+cd frontend && npm run typecheck
+
+# Lint
+cd frontend && npm run lint
+
+# Run Playwright E2E tests
+cd frontend && npx playwright test
+
+# Dev server (proxies /api/* → localhost:8000)
+cd frontend && npm run dev
+```
+
+### Docker
+
+```bash
+# Start dev stack (Postgres + backend)
+docker compose up -d --build
+
+# Start prod stack (Postgres + backend + frontend + Caddy + backup)
+docker compose -f docker-compose.prod.yml up -d --build
+
+# Clean Docker cache without destroying the Postgres volume
+powershell -File docker/clean-cache.ps1
+```
+
+---
+
+## Architecture
+
+### Backend (FastAPI, async)
+
+Three-layer design:
+
+```
+API layer (app/api/)        → Route handlers, request validation, HTTP concerns
+Service layer (app/services/) → Business logic, cross-cutting orchestration
+Repository layer (app/repositories/) → Database queries, one class per table
+```
+
+Key files and directories:
+
+| Path | Role |
+|---|---|
+| `app/main.py` | `create_app()` factory — registers all routers, middleware, CORS |
+| `app/api/deps.py` | FastAPI dependencies: `DBSession` (yields async DB session), `rate_limit_session`, `rate_limit_admin` |
+| `app/core/config.py` | Pydantic `BaseSettings` — all config from env vars (loaded from `.env`) |
+| `app/core/security.py` | `require_admin()` — validates `X-Admin-Token` header |
+| `app/db/models.py` | **All 11 ORM models in one file** (~320 lines) |
+| `app/db/session.py` | Async engine + session factory + `get_db()` generator |
+| `app/llm/` | **Factory pattern**: `factory.py` picks a provider (`deepseek` / `dry_run` / `disabled`) based on `LLM_PROVIDER` env var. All providers implement the `LLMProvider` protocol in `base.py`. |
+| `app/middleware/` | `RequestIdMiddleware` (adds `X-Request-ID` to every response) + `rate_limiter.py` (in-memory sliding-window) |
+| `app/scripts/` | CLI utilities: `seed.py`, `validate_data.py`, `data_loader.py` |
+
+**LLM rule (critical):** Every LLM call MUST go through `services/llm_audit.record_llm_call()` on both success AND failure paths. Skipping audit on the error path breaks research token accounting. The participant flow (V5) does NOT call the LLM at all — it returns seeded `aiDraft` verbatim.
+
+### Frontend (Next.js 14 App Router)
+
+**State management:** A single Zustand store (`src/lib/store.ts`) persisted to `localStorage` drives the entire study flow. It holds `session`, `step`, `caseIndex`, `completionCode`, and `performance`.
+
+**Study flow (route progression):**
+
+```
+/ → /consent → /pre-survey → /practice → /case/[order] (× N cases) → /post-survey → /completion
+```
+
+The Zustand `step` field controls which page renders; `caseIndex` drives which case within the `case` step.
+
+Key directories:
+
+| Path | Role |
+|---|---|
+| `src/app/` | Next.js App Router pages — one directory per route |
+| `src/components/` | Shared components: `Likert`, `ProgressBar`, `VoiceInputButton`, plus `case/CasePage.tsx` (most complex component, ~8.6KB) |
+| `src/lib/api/client.ts` | Fetch wrapper (base URL, error handling) |
+| `src/lib/api/types.ts` | TypeScript interfaces for API DTOs (~227 lines) |
+| `src/lib/store.ts` | Zustand store — the single source of truth for study state |
+| `src/lib/i18n/zh-CN.ts` | Chinese UI dictionary (single file, ~168 lines; English not supported) |
+| `src/lib/forms/` | Pre-survey and post-survey form field configs |
+
+**V5 is single-condition.** The guardrail UI panel is intentionally not rendered (`guardrail: None` in `case_service.py`). There is no experimental/control group split — every participant sees the same UI.
+
+### Database (11 tables)
+
+All models in **one file** (`app/db/models.py`). Primary keys are UUID hex strings (`uuid.uuid4().hex`).
+
+Key relationships:
+- `Session` → `CasePresentation` ← `Case` (junction with `order_index` and timing)
+- `CasePresentation` → `Action` (one-to-one, unique FK)
+- `Session` → `UiEvent` (fire-and-forget telemetry)
+- `Participant` → `Session` (one participant per session)
+
+Migrations via Alembic (5 revisions in `backend/alembic/versions/`).
+
+### API routes summary
+
+| Route | Method | Purpose |
+|---|---|---|
+| `/healthz` | GET | Health check |
+| `/api/session` | POST | Create participant + session, return case order |
+| `/api/case/{id}` | GET | Fetch a case with seeded AI draft |
+| `/api/case/open` | POST | Create / return in-progress CasePresentation |
+| `/api/action` | POST | Submit decision (action + survey + client stats) |
+| `/api/pre-survey` | POST | Submit pre-study survey |
+| `/api/post-survey` | POST | Submit post-study survey (marks session complete) |
+| `/api/ui-event` | POST | Log UI interaction (fire-and-forget) |
+| `/api/voice-recording` | POST | Upload audio recording (multipart) |
+| `/api/admin/summary` | GET | Aggregated study statistics |
+| `/api/admin/export/*` | GET | CSV / JSON / ZIP data exports |
+| `/api/admin/dashboard/*` | GET | Dashboard overview + health + timeseries |
+| `/api/admin/llm/*` | POST | LLM-powered cohort / participant summaries |
 
 ---
 
