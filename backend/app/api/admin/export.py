@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import hashlib
 import io
 import json
 import zipfile
@@ -94,6 +95,10 @@ async def export_bundle(
         None,
         description="Comma-separated table names; omit for default study bundle.",
     ),
+    anonymized: bool = Query(
+        False,
+        description="Strip free-text reply fields and hash participant IDs.",
+    ),
     db: AsyncSession = Depends(db_session),
     _rate: None = Depends(rate_limit_admin),
 ) -> Response:
@@ -114,7 +119,7 @@ async def export_bundle(
     buf = io.BytesIO()
     with zipfile.ZipFile(buf, mode="w", compression=zipfile.ZIP_DEFLATED) as zf:
         for name in chosen:
-            rows = await _load_table(name, db)
+            rows = await _load_table(name, db, anonymized=anonymized)
             if name == "summary":
                 flat = flatten_summary(rows)  # type: ignore[arg-type]
                 csv_text = to_csv(flat)
@@ -137,11 +142,15 @@ async def export(
     request: Request,
     table: TableName = Query("summary"),
     format: Literal["csv", "json"] = Query("csv"),
+    anonymized: bool = Query(
+        False,
+        description="Strip free-text reply fields and hash participant IDs.",
+    ),
     db: AsyncSession = Depends(db_session),
     _rate: None = Depends(rate_limit_admin),
 ) -> Response:
     require_admin(request)
-    rows: Any = await _load_table(table, db)
+    rows: Any = await _load_table(table, db, anonymized=anonymized)
 
     if format == "json":
         return JSONResponse(
@@ -162,13 +171,36 @@ async def export(
     )
 
 
-async def _load_table(table: str, db: AsyncSession) -> Any:
+_ANON_SALT = "medai-anonymized-2026"
+
+
+def _anon(haystack: str) -> str:
+    """Deterministic 16-char anonymised ID from a real id.
+
+    Same input → same output across runs, so the researcher can join
+    tables even in anonymized mode. The salt means raw SHA-256 rainbow
+    tables don't trivially reverse the mapping.
+    """
+    return hashlib.sha256(f"{_ANON_SALT}:{haystack}".encode()).hexdigest()[:16]
+
+
+def _anon8(haystack: str) -> str:
+    """8-char variant for compact columns like completion_code."""
+    return _anon(haystack)[:8]
+
+
+async def _load_table(table: str, db: AsyncSession, *, anonymized: bool = False) -> Any:
     if table == "participants":
         rows = (await db.execute(select(Participant))).scalars().all()
         return [
             {
-                "completion_code": f"AIDR-{r.id[-8:].upper()}" if r.completed_flag else None,
-                "participant_id": r.id,
+                "completion_code": (
+                    f"AIDR-{_anon8(r.id)}" if anonymized and r.completed_flag
+                    else (f"AIDR-{r.id[-8:].upper()}" if r.completed_flag else None)
+                ),
+                "participant_id": (
+                    _anon(r.id) if anonymized else r.id
+                ),
                 "condition": r.condition,
                 "order_template_id": r.order_template_id,
                 "pre_specialty": r.pre_specialty,
@@ -259,8 +291,12 @@ async def _load_table(table: str, db: AsyncSession) -> Any:
                     "discard_flag": r.discard_flag,
                     "escalate_flag": r.escalate_flag,
                     "escalate_subtype": r.escalate_subtype,
-                    "escalate_reason": r.escalate_reason,
-                    "final_reply_text": r.final_reply_text,
+                    "escalate_reason": (
+                        None if anonymized else r.escalate_reason
+                    ),
+                    "final_reply_text": (
+                        None if anonymized else r.final_reply_text
+                    ),
                     "final_reply_char_count": r.final_reply_char_count,
                     "edit_distance": r.edit_distance,
                     "gold_action": gold,
