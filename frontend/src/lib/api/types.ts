@@ -126,3 +126,10 @@ export interface LlmSummaryResponse {
   completionTokens: number | null;
   latencyMs: number;
 }
+
+export interface DashboardHealthResponse {
+  dbConnected: boolean;
+  serverTime: string;
+  llmErrors24h: number;
+  activeSessions: number;
+}

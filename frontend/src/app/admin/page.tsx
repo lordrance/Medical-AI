@@ -10,6 +10,7 @@ import type {
 } from "@/lib/api/types";
 import { zh } from "@/lib/i18n/zh-CN";
 import { PageBack } from "@/components/PageBack";
+import SystemHealthCard from "@/components/admin/SystemHealthCard";
 
 const TABLES = [
   { id: "participants", label: "参与者" },
@@ -65,6 +66,8 @@ function AdminInner() {
       <div className="card card-section">
         <h2 className="text-lg font-semibold">{zh.admin.title}</h2>
       </div>
+
+      <SystemHealthCard token={token} />
 
       <div className="card card-section">
         <h3 className="text-base font-semibold">{zh.admin.completion}</h3>

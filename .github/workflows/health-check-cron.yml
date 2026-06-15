@@ -1,0 +1,34 @@
+name: Health Check Cron
+
+on:
+  schedule:
+    # Every 5 minutes
+    - cron: "*/5 * * * *"
+  workflow_dispatch: # Allow manual trigger
+
+jobs:
+  health-check:
+    runs-on: ubuntu-latest
+    permissions:
+      issues: write
+    steps:
+      - name: Check API health endpoint
+        run: |
+          curl -f -s -o /dev/null -m 10 "${{ secrets.DEPLOY_URL }}/healthz"
+        shell: bash
+
+      - name: Notify on failure
+        if: failure()
+        uses: actions/create-issue@v1
+        with:
+          title: "Health check failed — /healthz is unreachable"
+          body: |
+            The scheduled health check (every 5 min) failed to reach the `/healthz` endpoint.
+
+            **Time:** ${{ github.event.repository.updated_at }}
+            **Workflow:** [${{ github.run_id }}](/${{ github.repository }}/actions/runs/${{ github.run_id }})
+            **URL:** ${{ secrets.DEPLOY_URL }}/healthz
+
+            Please investigate immediately.
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
