@@ -13,6 +13,7 @@ from app.api.admin import (
     summary as admin_summary,
 )
 from app.core.config import get_settings
+from app.core.exception_handlers import register_exception_handlers
 
 
 @asynccontextmanager
@@ -49,6 +50,8 @@ def create_app() -> FastAPI:
     app.include_router(admin_summary.router)
     app.include_router(admin_export.router)
     app.include_router(admin_llm.router)
+
+    register_exception_handlers(app)
 
     return app
 
