@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import structlog
 from fastapi import APIRouter, Depends, Request
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -11,6 +12,8 @@ from app.services.analysis import (
     per_case_stats,
     per_participant_stats,
 )
+
+logger = structlog.get_logger(__name__)
 
 router = APIRouter(prefix="/api/admin", tags=["admin"])
 
@@ -24,6 +27,7 @@ async def get_summary(
     cm = await confusion_matrix(db)
     per_case = await per_case_stats(db)
     per_pt = await per_participant_stats(db)
+    logger.info("admin_summary_loaded", total_participants=completion.get("totalParticipants"))
     return {
         "completion": completion,
         "confusionMatrix": cm,

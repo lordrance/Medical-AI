@@ -3,9 +3,9 @@ from __future__ import annotations
 import json
 from typing import Any
 
+import structlog
 from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel
-from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import db_session
@@ -24,6 +24,8 @@ from app.services.analysis import (
     per_case_stats,
     per_participant_stats,
 )
+
+logger = structlog.get_logger(__name__)
 
 router = APIRouter(prefix="/api/admin/llm", tags=["admin-llm"])
 
@@ -117,6 +119,7 @@ async def llm_case_draft(
             latency_ms=0,
             error=str(e),
         )
+        logger.error("llm_case_draft_failed", error=str(e))
         raise HTTPException(503, str(e)) from e
 
     await _record_llm_call(
@@ -129,6 +132,14 @@ async def llm_case_draft(
         prompt_tokens=resp.prompt_tokens,
         completion_tokens=resp.completion_tokens,
         latency_ms=resp.latency_ms,
+    )
+    logger.info(
+        "llm_case_draft_success",
+        provider=resp.provider,
+        model=resp.model,
+        latency_ms=resp.latency_ms,
+        prompt_tokens=resp.prompt_tokens,
+        completion_tokens=resp.completion_tokens,
     )
     return CaseDraftResponse(
         text=resp.text,
@@ -149,6 +160,7 @@ async def llm_participant_summary(
     require_admin(request)
     pt = await db.get(Participant, body.participantId)
     if pt is None:
+        logger.warning("participant_not_found", participant_id=body.participantId)
         raise HTTPException(404, "Unknown participant")
 
     pp = await per_participant_stats(db)
@@ -178,6 +190,7 @@ async def llm_participant_summary(
     try:
         resp = await provider.generate(system=system, user=user, max_tokens=600)
     except LLMUnavailable as e:
+        logger.error("llm_participant_summary_failed", participant_id=body.participantId, error=str(e))
         raise HTTPException(503, str(e)) from e
 
     await _record_llm_call(
@@ -190,6 +203,13 @@ async def llm_participant_summary(
         prompt_tokens=resp.prompt_tokens,
         completion_tokens=resp.completion_tokens,
         latency_ms=resp.latency_ms,
+    )
+    logger.info(
+        "llm_participant_summary_success",
+        participant_id=body.participantId,
+        latency_ms=resp.latency_ms,
+        prompt_tokens=resp.prompt_tokens,
+        completion_tokens=resp.completion_tokens,
     )
     return SummaryResponse(
         summaryText=resp.text,
@@ -222,6 +242,7 @@ async def llm_cohort_summary(
     try:
         resp = await provider.generate(system=system, user=user, max_tokens=900)
     except LLMUnavailable as e:
+        logger.error("llm_cohort_summary_failed", error=str(e))
         raise HTTPException(503, str(e)) from e
 
     db.add(
@@ -240,6 +261,12 @@ async def llm_cohort_summary(
         prompt_tokens=resp.prompt_tokens,
         completion_tokens=resp.completion_tokens,
         latency_ms=resp.latency_ms,
+    )
+    logger.info(
+        "llm_cohort_summary_success",
+        latency_ms=resp.latency_ms,
+        prompt_tokens=resp.prompt_tokens,
+        completion_tokens=resp.completion_tokens,
     )
     return SummaryResponse(
         summaryText=resp.text,

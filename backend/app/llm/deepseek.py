@@ -4,8 +4,11 @@ import time
 from typing import Any
 
 import httpx
+import structlog
 
 from app.llm.base import LLMResponse, LLMUnavailable
+
+logger = structlog.get_logger(__name__)
 
 
 class DeepseekProvider:
@@ -59,9 +62,18 @@ class DeepseekProvider:
                     json=body,
                 )
         except httpx.HTTPError as e:
+            latency_ms = int((time.monotonic() - start) * 1000)
+            logger.error("deepseek_http_error", error=str(e), latency_ms=latency_ms)
             raise LLMUnavailable(f"DeepSeek HTTP error: {e}") from e
 
         if resp.status_code != 200:
+            latency_ms = int((time.monotonic() - start) * 1000)
+            logger.error(
+                "deepseek_api_error",
+                status_code=resp.status_code,
+                latency_ms=latency_ms,
+                response_preview=resp.text[:200],
+            )
             raise LLMUnavailable(
                 f"DeepSeek API returned {resp.status_code}: {resp.text[:500]}"
             )
@@ -70,9 +82,18 @@ class DeepseekProvider:
             text = data["choices"][0]["message"]["content"]
             usage = data.get("usage") or {}
         except Exception as e:
+            latency_ms = int((time.monotonic() - start) * 1000)
+            logger.error("deepseek_parse_error", error=str(e), latency_ms=latency_ms)
             raise LLMUnavailable(f"DeepSeek bad response shape: {e}") from e
 
         latency = int((time.monotonic() - start) * 1000)
+        logger.info(
+            "deepseek_call_success",
+            model=self.model,
+            latency_ms=latency,
+            prompt_tokens=usage.get("prompt_tokens"),
+            completion_tokens=usage.get("completion_tokens"),
+        )
         return LLMResponse(
             text=text,
             model=self.model,

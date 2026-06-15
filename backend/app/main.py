@@ -13,10 +13,12 @@ from app.api.admin import (
     summary as admin_summary,
 )
 from app.core.config import get_settings
+from app.core.logging_config import configure_logging
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncIterator[None]:
+    configure_logging()
     yield
 
 

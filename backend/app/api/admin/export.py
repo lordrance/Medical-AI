@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 from typing import Any, Literal
 
+import structlog
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from fastapi.responses import JSONResponse, Response
 from sqlalchemy import select
@@ -27,6 +28,8 @@ from app.services.analysis import (
     per_participant_stats,
 )
 from app.services.csv_export import flatten_summary, to_csv
+
+logger = structlog.get_logger(__name__)
 
 router = APIRouter(prefix="/api/admin", tags=["admin"])
 
@@ -53,6 +56,7 @@ async def export(
     rows: Any = await _load_table(table, db)
 
     if format == "json":
+        logger.info("export_completed", table=table, format=format)
         return JSONResponse(
             content=rows,
             headers={"Content-Disposition": f'attachment; filename="{table}.json"'},
@@ -63,6 +67,8 @@ async def export(
         csv_text = to_csv(flat)
     else:
         csv_text = to_csv(rows)  # type: ignore[arg-type]
+
+    logger.info("export_completed", table=table, format=format, row_count=len(rows))
 
     return Response(
         content=csv_text,

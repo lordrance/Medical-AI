@@ -3,6 +3,7 @@ from __future__ import annotations
 from collections import defaultdict
 from typing import Any
 
+import structlog
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
@@ -15,6 +16,8 @@ from app.db.models import (
     Session,
 )
 from app.schemas.common import ACTION_LABEL_ZH
+
+logger = structlog.get_logger(__name__)
 
 ALL_ACTIONS: list[str] = [
     "send_as_is",
@@ -33,6 +36,7 @@ async def session_formal_performance(
     db: AsyncSession, session_id: str
 ) -> dict[str, Any]:
     """Count formal-case correct vs gold or alternates (same rule as admin export)."""
+    logger.info("computing_session_performance", session_id=session_id)
     stmt = (
         select(CasePresentation)
         .join(Action, Action.case_presentation_id == CasePresentation.id)
@@ -58,6 +62,7 @@ async def session_formal_performance(
 
 
 async def completion_stats(db: AsyncSession) -> dict[str, Any]:
+    logger.info("computing_completion_stats")
     total = (await db.execute(select(func.count(Participant.id)))).scalar() or 0
     completed = (
         await db.execute(
@@ -93,6 +98,7 @@ async def _formal_presentations(db: AsyncSession) -> list[CasePresentation]:
 
 
 async def confusion_matrix(db: AsyncSession) -> dict[str, Any]:
+    logger.info("computing_confusion_matrix")
     rows = await _formal_presentations(db)
     actions = ALL_ACTIONS
     idx = {a: i for i, a in enumerate(actions)}
@@ -118,6 +124,7 @@ async def confusion_matrix(db: AsyncSession) -> dict[str, Any]:
 
 
 async def per_case_stats(db: AsyncSession) -> list[dict[str, Any]]:
+    logger.info("computing_per_case_stats")
     rows = await _formal_presentations(db)
     by_case: dict[str, list[CasePresentation]] = defaultdict(list)
     for r in rows:
@@ -185,6 +192,7 @@ async def per_case_stats(db: AsyncSession) -> list[dict[str, Any]]:
 
 
 async def per_participant_stats(db: AsyncSession) -> list[dict[str, Any]]:
+    logger.info("computing_per_participant_stats")
     rows = await _formal_presentations(db)
     by_pt: dict[str, list[CasePresentation]] = defaultdict(list)
     for r in rows:

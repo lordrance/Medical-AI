@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import structlog
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -8,6 +9,8 @@ from app.api.deps import db_session
 from app.db.base import utcnow
 from app.db.models import Participant, PostSurvey, Session, UiEvent
 from app.services.analysis import session_formal_performance
+
+logger = structlog.get_logger(__name__)
 
 router = APIRouter(tags=["survey"])
 
@@ -28,9 +31,11 @@ async def submit_pre_survey(
 ) -> dict:
     session = await db.get(Session, body.sessionId)
     if session is None:
+        logger.warning("session_not_found", session_id=body.sessionId)
         raise HTTPException(404, "Unknown session")
     participant = await db.get(Participant, session.participant_id)
     if participant is None:
+        logger.warning("participant_not_found", participant_id=session.participant_id)
         raise HTTPException(404, "Unknown participant")
 
     a = body.answers
@@ -63,6 +68,7 @@ async def submit_pre_survey(
         )
     )
     await db.commit()
+    logger.info("pre_survey_submitted", session_id=body.sessionId, participant_id=session.participant_id)
     return {"ok": True}
 
 
@@ -72,6 +78,7 @@ async def submit_post_survey(
 ) -> dict:
     session = await db.get(Session, body.sessionId)
     if session is None:
+        logger.warning("session_not_found", session_id=body.sessionId)
         raise HTTPException(404, "Unknown session")
 
     db.add(
@@ -93,6 +100,12 @@ async def submit_post_survey(
     completion_code = f"AIDR-{session.participant_id[-8:].upper()}"
     performance = await session_formal_performance(db, session.id)
     await db.commit()
+    logger.info(
+        "post_survey_submitted",
+        session_id=body.sessionId,
+        participant_id=session.participant_id,
+        completion_code=completion_code,
+    )
     return {
         "ok": True,
         "completionCode": completion_code,

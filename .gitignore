@@ -39,4 +39,5 @@ backend/.env
 .idea/
 .vscode/
 
+.claude/
 next-env.d.ts

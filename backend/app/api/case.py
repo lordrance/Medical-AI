@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 
+import structlog
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -11,6 +12,8 @@ from app.llm.base import LLMUnavailable
 from app.llm.factory import get_provider
 from app.llm.prompts import load_prompt, render_template
 from app.schemas.case import CasePayload, CaseResponse, GuardrailContent
+
+logger = structlog.get_logger(__name__)
 
 router = APIRouter(prefix="/api/case", tags=["case"])
 
@@ -66,19 +69,30 @@ async def get_case(
 ) -> CaseResponse:
     session = await db.get(Session, sessionId)
     if session is None:
+        logger.warning("session_not_found", session_id=sessionId, case_id=case_id)
         raise HTTPException(404, "Unknown session")
     participant = await db.get(Participant, session.participant_id)
     if participant is None:
+        logger.warning("participant_not_found", participant_id=session.participant_id, session_id=sessionId)
         raise HTTPException(404, "Unknown participant")
 
     case = await db.get(Case, case_id)
     if case is None:
+        logger.warning("case_not_found", case_id=case_id, session_id=sessionId)
         raise HTTPException(404, "Case not found")
 
     is_guardrail = participant.condition == "guardrail"
     ai_draft = await _generate_case_draft(case)
     risk_for_guardrail = (
         await _generate_ai_risk_tip(case) if is_guardrail else case.risk_cue
+    )
+
+    logger.info(
+        "case_loaded",
+        session_id=sessionId,
+        case_id=case_id,
+        is_practice=case.is_practice,
+        condition=participant.condition,
     )
 
     return CaseResponse(

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from datetime import datetime, timezone
 
+import structlog
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field, model_validator
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -10,6 +11,8 @@ from app.api.deps import db_session
 from app.db.models import Action, Case, CasePresentation, CaseSurvey, Session
 from app.schemas.common import EscalateSubtype, SelectedAction
 from app.services.edit_distance import levenshtein
+
+logger = structlog.get_logger(__name__)
 
 router = APIRouter(prefix="/api/action", tags=["action"])
 
@@ -75,9 +78,11 @@ async def submit_action(
 ) -> ActionResponse:
     session = await db.get(Session, body.sessionId)
     if session is None:
+        logger.warning("session_not_found", session_id=body.sessionId)
         raise HTTPException(404, "Unknown session")
     case = await db.get(Case, body.caseId)
     if case is None:
+        logger.warning("case_not_found", case_id=body.caseId, session_id=body.sessionId)
         raise HTTPException(404, "Unknown case")
 
     edit_distance = levenshtein(case.ai_draft, body.finalReplyText)
@@ -128,6 +133,14 @@ async def submit_action(
         )
     )
     await db.commit()
+
+    logger.info(
+        "action_submitted",
+        session_id=body.sessionId,
+        case_id=body.caseId,
+        action=sa.value,
+        edit_distance=edit_distance,
+    )
 
     return ActionResponse(
         ok=True,
