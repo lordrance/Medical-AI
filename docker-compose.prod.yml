@@ -1,14 +1,16 @@
-# Production docker-compose.
-# Brings up postgres + backend + frontend + nginx + nightly backup.
+# Production docker-compose for short-term cloud deployment.
 #
-# Usage:
-#   cp .env.example .env       # set strong ADMIN_TOKEN, DEEPSEEK_API_KEY, POSTGRES_PASSWORD
+# Brings up postgres + backend + frontend + Caddy (auto-HTTPS reverse proxy)
+# + nightly Postgres backup.
+#
+# Quickstart on the cloud server:
+#   bash deploy/setup.sh
+# which writes .env, then runs:
 #   docker compose -f docker-compose.prod.yml up -d --build
 #
-# Notes:
-#   * Frontend Dockerfile is added in Phase 3.
-#   * Nginx terminates TLS in real deployments — here we ship a plain HTTP
-#     reverse proxy that routes / -> frontend, /api -> backend.
+# Caddy terminates TLS automatically via Let's Encrypt using the domain
+# you configured in deploy/Caddyfile (typically a free nip.io address like
+# 43-155-12-34.nip.io that resolves to this server's public IP).
 
 services:
   db:
@@ -27,13 +29,14 @@ services:
       retries: 10
 
   backend:
+    image: ghcr.io/lordrance/medical-ai-backend:${IMAGE_TAG:-latest}
     build:
       context: ./backend
     restart: always
     environment:
       DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER:-medai}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB:-medai}
       ADMIN_TOKEN: ${ADMIN_TOKEN:?must set ADMIN_TOKEN}
-      CORS_ORIGINS: ${CORS_ORIGINS:-["https://your-domain"]}
+      CORS_ORIGINS: ${CORS_ORIGINS:-["*"]}
       LLM_PROVIDER: ${LLM_PROVIDER:-disabled}
       LLM_DRY_RUN: ${LLM_DRY_RUN:-false}
       DEEPSEEK_API_KEY: ${DEEPSEEK_API_KEY:-}
@@ -42,18 +45,29 @@ services:
       RUN_MIGRATIONS: "true"
       SEED_ON_START: "true"
       APP_ENV: production
+      # Audio files land here inside the container; we bind-mount the host
+      # path below so they survive container rebuilds and can be backed up
+      # without going through docker exec.
+      VOICE_RECORDINGS_DIR: /app/data/voice_recordings
     depends_on:
       db:
         condition: service_healthy
     expose:
       - "8000"
+    volumes:
+      - ./data/voice_recordings:/app/data/voice_recordings
     healthcheck:
-      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:8000/healthz"]
+      # GET (not HEAD) because /healthz only accepts GET — `wget --spider`
+      # sends HEAD and the backend would return 405 Method Not Allowed,
+      # forever marking the container unhealthy.
+      test: ["CMD", "wget", "--quiet", "--tries=1", "-O", "/dev/null", "http://localhost:8000/healthz"]
       interval: 30s
       timeout: 5s
       retries: 3
+      start_period: 60s
 
   frontend:
+    image: ghcr.io/lordrance/medical-ai-frontend:${IMAGE_TAG:-latest}
     build:
       context: ./frontend
       args:
@@ -67,15 +81,24 @@ services:
     expose:
       - "3000"
 
-  nginx:
-    image: nginx:1.27-alpine
+  caddy:
+    image: caddy:2.8-alpine
     restart: always
     depends_on:
       - backend
+      - frontend
     ports:
       - "80:80"
+      - "443:443"
     volumes:
-      - ./docker/nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./deploy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data       # Let's Encrypt certificates persist here
+      - caddy_config:/config
+    environment:
+      # Resolved from .env. setup.sh writes this from the server IP.
+      SITE_DOMAIN: ${SITE_DOMAIN:?must set SITE_DOMAIN (e.g. 43-155-12-34.nip.io)}
+      # Optional email for Let's Encrypt account; can be left blank for ACME default.
+      ACME_EMAIL: ${ACME_EMAIL:-}
 
   backup:
     image: postgres:15-alpine
@@ -105,3 +128,5 @@ services:
 
 volumes:
   pgdata:
+  caddy_data:
+  caddy_config:
