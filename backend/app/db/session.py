@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from collections.abc import AsyncIterator
+from typing import Any
 
 from sqlalchemy.ext.asyncio import (
     AsyncEngine,
@@ -18,12 +19,19 @@ _session_factory: async_sessionmaker[AsyncSession] | None = None
 def _build_engine() -> AsyncEngine:
     settings = get_settings()
     url = settings.DATABASE_URL
-    return create_async_engine(
-        url,
-        echo=False,
-        future=True,
-        pool_pre_ping=True,
-    )
+
+    # SQLite does not support connection pooling the same way as PostgreSQL,
+    # but pool_pre_ping is harmless (aiosqlite runs a SELECT 1 internally).
+    # Add a connect timeout for SQLite to avoid "database is locked" errors.
+    kwargs: dict[str, Any] = {
+        "echo": False,
+        "future": True,
+        "pool_pre_ping": True,
+    }
+    if url.startswith("sqlite"):
+        kwargs.setdefault("connect_args", {"timeout": 15})
+
+    return create_async_engine(url, **kwargs)
 
 
 def get_engine() -> AsyncEngine:
