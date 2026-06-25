@@ -38,7 +38,6 @@ def _build_engine() -> AsyncEngine:
             "connect_args": {
                 "timeout": 10,
                 "command_timeout": 30,
-                "keepalives_idle": 30,
                 "server_settings": {
                     "jit": "off",
                     "statement_timeout": "30000",
