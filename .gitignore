@@ -48,3 +48,4 @@ backend/tools/
 
 next-env.d.ts
 backend/logs/
+.deployrc
