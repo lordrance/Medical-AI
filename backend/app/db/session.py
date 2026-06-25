@@ -18,12 +18,24 @@ _session_factory: async_sessionmaker[AsyncSession] | None = None
 def _build_engine() -> AsyncEngine:
     settings = get_settings()
     url = settings.DATABASE_URL
-    return create_async_engine(
-        url,
-        echo=False,
-        future=True,
-        pool_pre_ping=True,
-    )
+    is_postgres = url.startswith("postgresql")
+    engine_kwargs: dict = {
+        "echo": False,
+        "future": True,
+        "pool_pre_ping": True,
+    }
+    if is_postgres:
+        engine_kwargs.update({
+            "pool_size": 10,
+            "max_overflow": 10,
+            "pool_recycle": 1800,
+            "connect_args": {
+                "timeout": 10,
+                "command_timeout": 30,
+                "keepalives_idle": 30,
+            },
+        })
+    return create_async_engine(url, **engine_kwargs)
 
 
 def get_engine() -> AsyncEngine:

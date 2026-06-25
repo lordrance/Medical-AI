@@ -76,7 +76,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "python .claude/hooks/block_dangerous_commands.py"
+            "command": "python e:/medical/Medical-AI/.claude/hooks/block_dangerous_commands.py"
           }
         ]
       }
