@@ -47,3 +47,4 @@ backend/tools/
 .vscode/
 
 next-env.d.ts
+backend/logs/

@@ -40,21 +40,29 @@ async def get_case(
     if participant is None:
         raise HTTPException(404, "Unknown participant")
 
+    # Cases are read-only seed data — serve from memory when cached.
+    from app.core.cache import get as cache_get, set as cache_set
+
+    cache_key = f"case:{case_id}"
+    cached = cache_get(cache_key)
+    if cached is not None:
+        return CaseResponse(case=cached)
+
     case = await db.get(Case, case_id)
     if case is None:
         raise HTTPException(404, "Case not found")
 
-    return CaseResponse(
-        case=CasePayload(
-            id=case.id,
-            isPractice=case.is_practice,
-            riskLevel=case.risk_level,
-            patientMessage=case.patient_message,
-            chartSnapshot=case.chart_snapshot,
-            aiDraft=case.ai_draft,
-            guardrail=None,
-        )
+    payload = CasePayload(
+        id=case.id,
+        isPractice=case.is_practice,
+        riskLevel=case.risk_level,
+        patientMessage=case.patient_message,
+        chartSnapshot=case.chart_snapshot,
+        aiDraft=case.ai_draft,
+        guardrail=None,
     )
+    cache_set(cache_key, payload)
+    return CaseResponse(case=payload)
 
 
 class CaseOpenIn(BaseModel):

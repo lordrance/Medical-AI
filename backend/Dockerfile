@@ -69,4 +69,7 @@ HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
   CMD wget --quiet --tries=1 -O /dev/null http://localhost:8000/healthz || exit 1
 
 ENTRYPOINT ["/usr/local/bin/entrypoint.sh"]
-CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
+# Gunicorn with 4 async uvicorn workers — handles ~100 concurrent users.
+# Worker count override via WEB_CONCURRENCY env var (gunicorn built-in).
+# Each worker runs its own asyncio event loop for maximum I/O throughput.
+CMD ["gunicorn", "app.main:app", "-k", "uvicorn.workers.UvicornWorker", "-w", "4", "-b", "0.0.0.0:8000", "--access-logfile", "-", "--error-logfile", "-"]

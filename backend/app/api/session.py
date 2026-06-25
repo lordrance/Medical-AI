@@ -27,18 +27,30 @@ class SessionCreatedResponse(BaseModel):
 
 @router.post("", response_model=SessionCreatedResponse)
 async def create_session(db: AsyncSession = Depends(db_session)) -> SessionCreatedResponse:
-    templates = (await db.execute(select(OrderTemplate))).scalars().all()
-    if not templates:
-        raise HTTPException(500, "No order templates seeded")
+    from app.core.cache import get as cache_get, set as cache_set
+
+    # Order templates never change — cache after first DB hit.
+    cache_key_tpl = "templates"
+    templates = cache_get(cache_key_tpl)
+    if templates is None:
+        templates = (await db.execute(select(OrderTemplate))).scalars().all()
+        if not templates:
+            raise HTTPException(500, "No order templates seeded")
+        cache_set(cache_key_tpl, templates)
 
     template_id = pick_order_template_id([t.id for t in templates])
     template = next(t for t in templates if t.id == template_id)
 
-    practice = (
-        await db.execute(select(Case).where(Case.is_practice.is_(True)))
-    ).scalars().first()
+    # Practice case ID never changes — cache after first hit.
+    cache_key_practice = "practice_case"
+    practice = cache_get(cache_key_practice)
     if practice is None:
-        raise HTTPException(500, "Practice case missing")
+        practice = (
+            await db.execute(select(Case).where(Case.is_practice.is_(True)))
+        ).scalars().first()
+        if practice is None:
+            raise HTTPException(500, "Practice case missing")
+        cache_set(cache_key_practice, practice)
 
     condition = SINGLE_CONDITION
 

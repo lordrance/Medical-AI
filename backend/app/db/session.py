@@ -25,14 +25,24 @@ def _build_engine() -> AsyncEngine:
         "pool_pre_ping": True,
     }
     if is_postgres:
+        # Per-worker pool tuned for gunicorn with 4 workers.
+        # 4 workers × (8 + 5) = max 52 total Postgres connections.
+        # Override via env: DB_POOL_SIZE, DB_MAX_OVERFLOW.
+        import os
+        pool_size = int(os.getenv("DB_POOL_SIZE", "8"))
+        max_overflow = int(os.getenv("DB_MAX_OVERFLOW", "5"))
         engine_kwargs.update({
-            "pool_size": 10,
-            "max_overflow": 10,
+            "pool_size": pool_size,
+            "max_overflow": max_overflow,
             "pool_recycle": 1800,
             "connect_args": {
                 "timeout": 10,
                 "command_timeout": 30,
                 "keepalives_idle": 30,
+                "server_settings": {
+                    "jit": "off",
+                    "statement_timeout": "30000",
+                },
             },
         })
     return create_async_engine(url, **engine_kwargs)
