@@ -1,0 +1,82 @@
+# 部署到腾讯云生产环境（V4）。
+#
+# 流程：push 到 V4 → 等 CI 全绿 → 需要在 GitHub 页面人工点 "Approve"
+#       → SSH 到服务器 git pull + docker 重建 + 健康检查。
+#
+# 人工审批由 `environment: production` 提供：在仓库
+# Settings → Environments → production 里勾选 "Required reviewers"。
+#
+# 需要的 Secrets（Settings → Secrets and variables → Actions）：
+#   DEPLOY_HOST      服务器公网 IP（如 101.32.216.183）
+#   DEPLOY_USER      SSH 用户名（如 root）
+#   DEPLOY_SSH_KEY   SSH 私钥全文（~/.ssh/id_rsa 的内容）
+
+name: Deploy (production)
+
+on:
+  push:
+    branches:
+      - V4
+  workflow_dispatch: {} # 也支持在 Actions 页面手动触发
+
+jobs:
+  # 先跑一遍测试作为部署门禁——CI 单独也会跑，但这里再确认一次，
+  # 保证部署 job 的 needs 依赖一个明确通过的测试结果。
+  test-gate:
+    name: test gate
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: backend/pyproject.toml
+      - name: Install dependencies
+        run: pip install -e ".[dev]"
+      - name: Pytest
+        run: pytest -q
+      - name: Validate seed data
+        env:
+          PYTHONIOENCODING: utf-8
+        run: python -m app.scripts.validate_data
+
+  deploy:
+    name: deploy to Tencent Cloud
+    needs: test-gate
+    runs-on: ubuntu-latest
+    # 关联 production 环境——若配置了 Required reviewers，此处会暂停等人工审批。
+    environment:
+      name: production
+      url: https://101-32-216-183.nip.io
+    steps:
+      - name: SSH deploy
+        uses: appleboy/ssh-action@v1.2.0
+        with:
+          host: ${{ secrets.DEPLOY_HOST }}
+          username: ${{ secrets.DEPLOY_USER }}
+          key: ${{ secrets.DEPLOY_SSH_KEY }}
+          command_timeout: "20m"
+          script: |
+            set -e
+            cd ~/Medical-AI
+            git fetch origin V4
+            git checkout V4
+            git reset --hard origin/V4
+            bash deploy/deploy.sh V4
+
+      - name: Health check
+        run: |
+          echo "等待服务就绪..."
+          for i in $(seq 1 30); do
+            if curl -sf -k https://101-32-216-183.nip.io/healthz > /dev/null; then
+              echo "✅ 生产环境健康"
+              exit 0
+            fi
+            sleep 4
+          done
+          echo "❌ 健康检查超时"
+          exit 1
