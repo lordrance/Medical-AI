@@ -76,7 +76,19 @@ async def submit_post_survey(
     try:
         validated = PostSurveyV7Payload.model_validate(body.payload)
     except ValidationError as e:
-        raise HTTPException(status_code=422, detail=e.errors()) from e
+        # Pydantic's e.errors() embeds the original exception object under
+        # ctx["error"], which is NOT JSON-serializable. Passing it straight
+        # into HTTPException(detail=...) makes the JSON response renderer
+        # crash with a 500 instead of returning a clean 422. Flatten each
+        # error into plain serializable fields.
+        safe_errors = [
+            {
+                "field": " -> ".join(str(loc) for loc in err.get("loc", [])),
+                "message": err.get("msg", ""),
+            }
+            for err in e.errors()
+        ]
+        raise HTTPException(status_code=422, detail=safe_errors) from e
 
     db.add(
         PostSurvey(
