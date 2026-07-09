@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import logging
+import re
 import uuid
 from contextlib import asynccontextmanager
 from datetime import datetime, timezone
@@ -29,6 +30,7 @@ from app.api.admin import (
 from app.core.config import get_settings
 
 _logger = logging.getLogger("medical-ai")
+_REQUEST_ID_RE = re.compile(r"^[A-Za-z0-9-]{1,64}$")
 
 
 def _setup_logging() -> None:
@@ -60,9 +62,17 @@ def create_app() -> FastAPI:
     )
 
     # --- Request-ID middleware (inlined for V4 hotfix — no new file) ---
+    def _clean_request_id(raw: str | None) -> str:
+        # Accept a client-supplied X-Request-ID only if it's a short, safe
+        # token; otherwise mint a fresh one. Prevents log forging / oversized
+        # values from an untrusted header flowing into log lines.
+        if raw and _REQUEST_ID_RE.match(raw):
+            return raw
+        return uuid.uuid4().hex[:8]
+
     @app.middleware("http")
     async def _request_id_middleware(request: Request, call_next):
-        rid = request.headers.get("X-Request-ID") or uuid.uuid4().hex[:8]
+        rid = _clean_request_id(request.headers.get("X-Request-ID"))
         request.state.request_id = rid
         response = await call_next(request)
         response.headers["X-Request-ID"] = rid
@@ -116,6 +126,9 @@ def create_app() -> FastAPI:
             request.url.path, rid, repr(exc),
             exc_info=True,
         )
+        # ServerErrorMiddleware runs outside the request-id middleware, so the
+        # X-Request-ID response header would otherwise be missing on 500s.
+        # Set it directly here so clients can still correlate the failure.
         return JSONResponse(
             status_code=500,
             content={
@@ -123,6 +136,7 @@ def create_app() -> FastAPI:
                 "request_id": rid,
                 "timestamp": datetime.now(timezone.utc).isoformat(),
             },
+            headers={"X-Request-ID": rid},
         )
 
     app.add_middleware(

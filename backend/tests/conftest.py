@@ -19,6 +19,7 @@ if "DATABASE_URL" not in os.environ:
 os.environ.setdefault("ADMIN_TOKEN", "test-token")
 os.environ.setdefault("LLM_PROVIDER", "disabled")
 
+from app.core import cache  # noqa: E402
 from app.core.config import get_settings  # noqa: E402
 from app.db.base import Base  # noqa: E402
 from app.db.session import get_engine, reset_engine_for_tests  # noqa: E402
@@ -29,6 +30,9 @@ get_settings.cache_clear()  # type: ignore[attr-defined]
 
 @pytest_asyncio.fixture(autouse=True)
 async def _setup_db() -> AsyncIterator[None]:
+    # The in-memory seed-data cache is module-level and outlives the per-test
+    # database, so clear it or entries from a prior test's DB leak into this one.
+    cache.invalidate()
     await reset_engine_for_tests()
     engine = get_engine()
     async with engine.begin() as conn:
