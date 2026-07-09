@@ -34,10 +34,13 @@ export default function PostSurveyPage() {
   }, [session, router]);
 
   const requiredLikertItems = postSurveyConfig.blocks.flatMap((b) =>
-    b.items.filter((i) => i.type !== "text"),
+    b.items.filter((i) => i.type !== "text" && i.type !== "phone4"),
   );
   const requiredTextItems = postSurveyConfig.blocks.flatMap((b) =>
     b.items.filter((i) => i.type === "text"),
+  );
+  const requiredPhone4Items = postSurveyConfig.blocks.flatMap((b) =>
+    b.items.filter((i) => i.type === "phone4"),
   );
   const allAnswered = useMemo(() => {
     const likertOk = requiredLikertItems.every(
@@ -47,8 +50,12 @@ export default function PostSurveyPage() {
       const v = answers[it.id];
       return typeof v === "string" && v.trim().length > 0;
     });
-    return likertOk && textOk;
-  }, [answers, requiredLikertItems, requiredTextItems]);
+    const phone4Ok = requiredPhone4Items.every((it) => {
+      const v = answers[it.id];
+      return typeof v === "string" && /^\d{4}$/.test(v);
+    });
+    return likertOk && textOk && phone4Ok;
+  }, [answers, requiredLikertItems, requiredTextItems, requiredPhone4Items]);
 
   async function submit() {
     if (!session) return;
@@ -121,6 +128,22 @@ export default function PostSurveyPage() {
                       />
                     </div>
                   )}
+                </div>
+              ) : it.type === "phone4" ? (
+                <div key={it.id}>
+                  <label className="label whitespace-pre-line">{it.text}</label>
+                  <input
+                    type="text"
+                    inputMode="numeric"
+                    maxLength={4}
+                    className="input mt-2 w-40 tracking-widest"
+                    placeholder="0000"
+                    value={(answers[it.id] as string) ?? ""}
+                    onChange={(e) => {
+                      const digits = e.target.value.replace(/\D/g, "").slice(0, 4);
+                      setAnswers({ ...answers, [it.id]: digits });
+                    }}
+                  />
                 </div>
               ) : (
                 <div key={it.id}>

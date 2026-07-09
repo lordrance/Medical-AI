@@ -100,6 +100,8 @@ class PostSurveyV7Payload(BaseModel):
     post_qual_l1_ehr_pain_ai_substitution: str = Field(max_length=20000)
     post_qual_l2_human_ai_boundary: str = Field(max_length=20000)
     post_qual_l3_system_transformation: str = Field(max_length=20000)
+    # 手机号后 4 位，用于匹配作答与发放报酬。
+    post_phone_last4: str = Field(min_length=4, max_length=4)
 
     @field_validator(
         "post_qual_l1_ehr_pain_ai_substitution",
@@ -113,6 +115,14 @@ class PostSurveyV7Payload(BaseModel):
             raise ValueError("开放式补充题须填写后再提交")
         if len(s) > 20000:
             raise ValueError("单题回答长度超出上限")
+        return s
+
+    @field_validator("post_phone_last4")
+    @classmethod
+    def _validate_phone_last4(cls, v: str) -> str:
+        s = v.strip()
+        if not (len(s) == 4 and s.isdigit()):
+            raise ValueError("请填写手机号后 4 位数字")
         return s
 
     @model_validator(mode="after")
@@ -135,4 +145,5 @@ def post_survey_v7_all_threes() -> dict[str, int | str]:
     d["post_qual_l3_system_transformation"] = (
         "测试作答占位：医院组织管理与分级诊疗将被重塑，医生角色更偏审核；最期待文书负担下降，最担心责任模糊与患者隐私风险。"
     )
+    d["post_phone_last4"] = "1234"
     return d
