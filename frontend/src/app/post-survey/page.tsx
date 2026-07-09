@@ -10,7 +10,7 @@ import { Likert } from "@/components/Likert";
 // possible future restoration via a domestic STT backend.
 // import { VoiceInputButton } from "@/components/VoiceInputButton";
 import { VoiceRecorderButton } from "@/components/VoiceRecorderButton";
-import { api } from "@/lib/api/client";
+import { api, ApiError } from "@/lib/api/client";
 import type { PostSurveyResponse } from "@/lib/api/types";
 import { postSurveyConfig } from "@/lib/forms/postSurveyConfig";
 import { zh } from "@/lib/i18n/zh-CN";
@@ -70,8 +70,17 @@ export default function PostSurveyPage() {
       setPerformance(r.performance ?? null);
       setStep("completion");
       router.push("/completion");
-    } catch {
-      setError(zh.errors.network);
+    } catch (e) {
+      // A 422 means the payload failed backend validation (e.g. the
+      // attention-check question was not answered with 4). Retrying the
+      // same answers will fail identically, so tell the participant to
+      // re-check their answers instead of showing a "retry later" network
+      // message that would strand them in a loop.
+      if (e instanceof ApiError && e.status === 422) {
+        setError(zh.postSurvey.validationFailed);
+      } else {
+        setError(zh.errors.network);
+      }
     } finally {
       setBusy(false);
     }

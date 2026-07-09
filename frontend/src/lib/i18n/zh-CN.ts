@@ -71,6 +71,8 @@ export const zh = {
     actionReasonRequired: "请选择主要原因；若选「其他原因」请填写说明。",
     quickHeading: "请说明主要原因并完成以下两道评分",
     quickContinue: "继续下一案例",
+    submitFailed: "提交失败，请检查网络后重试（请勿重复点击）。",
+    retry: "刷新重试",
   },
   actionReason: {
     safety_risk: "安全风险或患者安全顾虑",
@@ -107,6 +109,7 @@ export const zh = {
   postSurvey: {
     submit: "提交问卷",
     saving: "提交中…",
+    validationFailed: "提交未通过校验，请向上检查各题是否已按要求作答后再试。",
   },
   voiceInput: {
     start: "语音输入",

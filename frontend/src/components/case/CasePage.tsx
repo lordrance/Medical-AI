@@ -282,6 +282,7 @@ export function CasePage(props: CasePageProps) {
   async function submitCase() {
     if (!allQuickAnswered || !selected) return;
     setSubmitting(true);
+    setValidationMsg(null);
     const endedAt = Date.now();
     const durationMs = endedAt - startedAtRef.current;
     const finalReplyText =
@@ -336,6 +337,13 @@ export function CasePage(props: CasePageProps) {
         timing: { startedAt: startedAtRef.current, endedAt, durationMs },
         clientStats,
       });
+    } catch {
+      // Network/HTTP failure on /api/action (common on flaky mobile
+      // networks). Surface an inline error instead of failing silently and
+      // stranding the participant on the quick-survey screen. onSubmit only
+      // navigates on success, so on error we stay on this case and the
+      // participant can retry.
+      setValidationMsg(zh.caseUI.submitFailed);
     } finally {
       setSubmitting(false);
     }
@@ -727,7 +735,10 @@ export function CasePage(props: CasePageProps) {
               </div>
             ))}
           </div>
-          <div className="mt-7 flex justify-end">
+          {validationMsg && (
+            <p className="mt-4 text-sm text-destructive">{validationMsg}</p>
+          )}
+          <div className="mt-4 flex justify-end">
             <button
               className="btn-primary"
               disabled={!allQuickAnswered || submitting}

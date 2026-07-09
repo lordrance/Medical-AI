@@ -70,7 +70,15 @@ export default function FormalCasePage() {
     })();
   }, [session, orderIndex, router, setCaseIndex]);
 
-  if (error) return <div className="card card-section text-destructive">{zh.errors.network}</div>;
+  if (error)
+    return (
+      <div className="card card-section space-y-3 text-center">
+        <p className="text-destructive">{zh.errors.network}</p>
+        <button className="btn-primary" onClick={() => window.location.reload()}>
+          {zh.caseUI.retry}
+        </button>
+      </div>
+    );
   if (!session || !casePayload)
     return <div className="card card-section text-muted-foreground">{zh.admin.loading}</div>;
 
