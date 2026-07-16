@@ -14,6 +14,19 @@
 #   Voice recordings can be up to 50 MB (see app/api/voice_recording.py).
 #   Default Caddy body limit is 10 MB; we raise it on the upload endpoint
 #   only to keep the rest of the API tight.
+#
+# HTTP/3 disabled:
+#   China's GFW throttles/blocks cross-border QUIC (UDP 443) — Android
+#   browsers that adopt HTTP/3 via the Alt-Svc hint stall mid-session
+#   ("做一半断"), while iOS (conservative QUIC) falls back to TCP and works.
+#   Restricting to h1+h2 keeps every client on TCP 443, which is reliable
+#   cross-border. Re-enable by removing the global `servers` block below.
+
+{
+    servers {
+        protocols h1 h2
+    }
+}
 
 {$SITE_DOMAIN} {
     # Caddy auto-provisions Let's Encrypt certificates by default — no
