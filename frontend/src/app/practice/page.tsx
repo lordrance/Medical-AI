@@ -36,7 +36,10 @@ export default function PracticePage() {
     }
     setCasePayload(null);
     setCasePresentationId(null);
+    setError(null);
+    let cancelled = false;
     void (async () => {
+      // Step 1: load case content — only this failing blocks the page.
       try {
         const cr = await api<CaseResponse>(
           `/api/case/${session.practiceCaseId}`,
@@ -44,7 +47,14 @@ export default function PracticePage() {
             query: { sessionId: session.sessionId },
           },
         );
+        if (cancelled) return;
         setCasePayload(cr.case);
+      } catch (e) {
+        if (!cancelled) setError((e as Error).message);
+        return;
+      }
+      // Step 2: telemetry open — non-blocking.
+      try {
         const op = await api<CaseOpenResponse>("/api/case/open", {
           method: "POST",
           body: {
@@ -53,14 +63,25 @@ export default function PracticePage() {
             orderIndex: -1,
           },
         });
-        setCasePresentationId(op.casePresentationId);
-      } catch (e) {
-        setError((e as Error).message);
+        if (!cancelled) setCasePresentationId(op.casePresentationId);
+      } catch {
+        // telemetry only; ignore.
       }
     })();
+    return () => {
+      cancelled = true;
+    };
   }, [session, router]);
 
-  if (error) return <div className="card card-section text-destructive">{zh.errors.network}</div>;
+  if (error)
+    return (
+      <div className="card card-section space-y-3 text-center">
+        <p className="text-destructive">{zh.errors.network}</p>
+        <button className="btn-primary" onClick={() => window.location.reload()}>
+          {zh.caseUI.retry}
+        </button>
+      </div>
+    );
   if (!session || !casePayload)
     return <div className="card card-section text-muted-foreground">{zh.admin.loading}</div>;
 

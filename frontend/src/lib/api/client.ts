@@ -8,6 +8,16 @@ interface Options {
   query?: Record<string, string | number | undefined>;
   headers?: Record<string, string>;
   signal?: AbortSignal;
+  /** Per-request timeout override in ms. Defaults: 15s GET, 25s POST. */
+  timeoutMs?: number;
+}
+
+/** Thrown when a request exceeds its timeout (distinct from an HTTP error). */
+export class TimeoutError extends Error {
+  constructor() {
+    super("请求超时，请检查网络后重试");
+    this.name = "TimeoutError";
+  }
 }
 
 export class ApiError extends Error {
@@ -54,23 +64,55 @@ export function buildFetchUrl(
 
 export async function api<T>(path: string, opts: Options = {}): Promise<T> {
   const fullUrl = buildFetchUrl(path, opts.query);
+  const method = opts.method ?? "GET";
+  const timeoutMs = opts.timeoutMs ?? (method === "POST" ? 25000 : 15000);
+
+  // Built-in timeout so a half-dead cross-border TCP connection (connected
+  // but never returning bytes — the observed Android/HarmonyOS failure mode)
+  // rejects instead of leaving the UI spinning forever. Implemented with a
+  // plain AbortController + setTimeout for old-Android-WebView compatibility
+  // (AbortSignal.any / AbortSignal.timeout are too new for those browsers).
+  const controller = new AbortController();
+  let timedOut = false;
+  const timer = setTimeout(() => {
+    timedOut = true;
+    controller.abort();
+  }, timeoutMs);
+
+  const onCallerAbort = () => controller.abort();
+  if (opts.signal) {
+    if (opts.signal.aborted) controller.abort();
+    else opts.signal.addEventListener("abort", onCallerAbort);
+  }
+
   const init: RequestInit = {
-    method: opts.method ?? "GET",
+    method,
     headers: {
       "Content-Type": "application/json",
       ...(opts.headers ?? {}),
     },
-    signal: opts.signal,
+    signal: controller.signal,
   };
   if (opts.body !== undefined) init.body = JSON.stringify(opts.body);
 
-  const r = await fetch(fullUrl, init);
-  if (!r.ok) {
-    const text = await r.text().catch(() => "");
-    throw new ApiError(r.status, text);
+  try {
+    const r = await fetch(fullUrl, init);
+    if (!r.ok) {
+      const text = await r.text().catch(() => "");
+      throw new ApiError(r.status, text);
+    }
+    if (r.status === 204) return undefined as unknown as T;
+    return (await r.json()) as T;
+  } catch (e) {
+    // Our timeout fired → surface a clear, retryable TimeoutError.
+    if (timedOut && e instanceof DOMException && e.name === "AbortError") {
+      throw new TimeoutError();
+    }
+    throw e; // caller-initiated abort or a genuine network error
+  } finally {
+    clearTimeout(timer);
+    if (opts.signal) opts.signal.removeEventListener("abort", onCallerAbort);
   }
-  if (r.status === 204) return undefined as unknown as T;
-  return (await r.json()) as T;
 }
 
 export function getApiBase(): string {

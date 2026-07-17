@@ -84,10 +84,20 @@ export function VoiceRecorderButton({
         fd.append("questionId", questionId);
         fd.append("durationMs", String(durationMs));
         fd.append("audio", blob, `recording.${extFromMime(blob.type)}`);
-        const r = await fetch(buildFetchUrl("/api/voice-recording"), {
-          method: "POST",
-          body: fd,
-        });
+        // 60s timeout: uploads can be up to 50 MB on slow cross-border links,
+        // but must not hang forever if the connection goes half-dead.
+        const ac = new AbortController();
+        const timer = setTimeout(() => ac.abort(), 60000);
+        let r: Response;
+        try {
+          r = await fetch(buildFetchUrl("/api/voice-recording"), {
+            method: "POST",
+            body: fd,
+            signal: ac.signal,
+          });
+        } finally {
+          clearTimeout(timer);
+        }
         if (!r.ok) {
           throw new Error(`上传失败 (HTTP ${r.status})`);
         }
@@ -97,7 +107,12 @@ export function VoiceRecorderButton({
         onUploaded?.({ voiceRecordingId: j.voiceRecordingId, bytes: j.fileSizeBytes });
       } catch (e) {
         setStatus("error");
-        setErrorMsg((e as Error).message);
+        const isAbort = e instanceof DOMException && e.name === "AbortError";
+        setErrorMsg(
+          isAbort
+            ? "上传超时，请检查网络后点「重新录音」重试。"
+            : (e as Error).message,
+        );
       }
     },
     [sessionId, questionId, onUploaded],

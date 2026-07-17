@@ -47,27 +47,40 @@ export default function FormalCasePage() {
     }
     setCasePayload(null);
     setCasePresentationId(null);
+    setError(null);
     setCaseIndex(orderIndex);
     const caseId = session.caseOrder[orderIndex];
+    // Guard against a stale response landing after the participant already
+    // navigated to another case (rapid next-clicks / back-forward).
+    let cancelled = false;
     void (async () => {
+      // Step 1: load the case content. Only THIS failing should block the case.
       try {
         const cr = await api<CaseResponse>(`/api/case/${caseId}`, {
           query: { sessionId: session.sessionId },
         });
+        if (cancelled) return;
         setCasePayload(cr.case);
+      } catch (e) {
+        if (!cancelled) setError((e as Error).message);
+        return;
+      }
+      // Step 2: open the presentation — telemetry-only correlation id. If it
+      // fails (flaky network), the case is still fully usable; do NOT block
+      // rendering on it. answer submission does not need casePresentationId.
+      try {
         const op = await api<CaseOpenResponse>("/api/case/open", {
           method: "POST",
-          body: {
-            sessionId: session.sessionId,
-            caseId,
-            orderIndex,
-          },
+          body: { sessionId: session.sessionId, caseId, orderIndex },
         });
-        setCasePresentationId(op.casePresentationId);
-      } catch (e) {
-        setError((e as Error).message);
+        if (!cancelled) setCasePresentationId(op.casePresentationId);
+      } catch {
+        // telemetry degradation only; ignore.
       }
     })();
+    return () => {
+      cancelled = true;
+    };
   }, [session, orderIndex, router, setCaseIndex]);
 
   if (error)

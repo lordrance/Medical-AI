@@ -16,6 +16,7 @@ import { postSurveyConfig } from "@/lib/forms/postSurveyConfig";
 import { zh } from "@/lib/i18n/zh-CN";
 import { useStudy } from "@/lib/store";
 import { PageBack } from "@/components/PageBack";
+import { saveDraft, loadDraft, clearDraft } from "@/lib/persist";
 
 type Answer = number | string;
 
@@ -29,36 +30,57 @@ export default function PostSurveyPage() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  const draftKey = session ? `post:${session.sessionId}` : null;
+
   useEffect(() => {
     if (!session) router.replace("/consent");
   }, [session, router]);
 
-  const requiredLikertItems = postSurveyConfig.blocks.flatMap((b) =>
-    b.items.filter((i) => i.type !== "text" && i.type !== "phone4"),
-  );
-  const requiredTextItems = postSurveyConfig.blocks.flatMap((b) =>
-    b.items.filter((i) => i.type === "text"),
-  );
-  const requiredPhone4Items = postSurveyConfig.blocks.flatMap((b) =>
-    b.items.filter((i) => i.type === "phone4"),
-  );
+  // Restore in-progress answers after a mobile WebView reload.
+  useEffect(() => {
+    if (!draftKey) return;
+    const saved = loadDraft<Record<string, Answer>>(draftKey);
+    if (saved) setAnswers(saved);
+  }, [draftKey]);
+
+  useEffect(() => {
+    if (draftKey && Object.keys(answers).length > 0) saveDraft(draftKey, answers);
+  }, [draftKey, answers]);
+
+  const isItemAnswered = (it: { id: string; type?: string }): boolean => {
+    const v = answers[it.id];
+    if (it.type === "text") return typeof v === "string" && v.trim().length > 0;
+    if (it.type === "phone4") return typeof v === "string" && /^\d{4}$/.test(v);
+    return typeof v === "number"; // likert
+  };
+
   const allAnswered = useMemo(() => {
-    const likertOk = requiredLikertItems.every(
-      (it) => typeof answers[it.id] === "number",
-    );
-    const textOk = requiredTextItems.every((it) => {
-      const v = answers[it.id];
-      return typeof v === "string" && v.trim().length > 0;
-    });
-    const phone4Ok = requiredPhone4Items.every((it) => {
-      const v = answers[it.id];
-      return typeof v === "string" && /^\d{4}$/.test(v);
-    });
-    return likertOk && textOk && phone4Ok;
-  }, [answers, requiredLikertItems, requiredTextItems, requiredPhone4Items]);
+    return postSurveyConfig.blocks
+      .flatMap((b) => b.items)
+      .every((it) => isItemAnswered(it));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [answers]);
+
+  /** First unanswered required item, in page order — for scroll-to + hint. */
+  function firstMissing(): { id: string; count: number } | null {
+    const items = postSurveyConfig.blocks.flatMap((b) => b.items);
+    const missing = items.filter((it) => !isItemAnswered(it));
+    if (missing.length === 0) return null;
+    return { id: missing[0].id, count: missing.length };
+  }
 
   async function submit() {
     if (!session) return;
+    // Instead of a silently-disabled button, tell the participant exactly
+    // what is left and jump them to it (they may have missed the attention
+    // check or the phone field near the end).
+    const miss = firstMissing();
+    if (miss) {
+      setError(`还有 ${miss.count} 道必答题未完成，已为您跳转到第一道未完成的题目。`);
+      const el = document.getElementById(`q-${miss.id}`);
+      if (el) el.scrollIntoView({ behavior: "smooth", block: "center" });
+      return;
+    }
     setBusy(true);
     setError(null);
     try {
@@ -66,6 +88,7 @@ export default function PostSurveyPage() {
         method: "POST",
         body: { sessionId: session.sessionId, payload: answers },
       });
+      if (draftKey) clearDraft(draftKey);
       setCompletionCode(r.completionCode);
       setPerformance(r.performance ?? null);
       setStep("completion");
@@ -102,7 +125,7 @@ export default function PostSurveyPage() {
             </h3>
             {b.items.map((it) =>
               it.type === "text" ? (
-                <div key={it.id}>
+                <div key={it.id} id={`q-${it.id}`}>
                   <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
                     <label className="label flex-1 whitespace-pre-line">{it.text}</label>
                     {/* V4: VoiceInputButton (Web Speech API → Google STT)
@@ -139,7 +162,7 @@ export default function PostSurveyPage() {
                   )}
                 </div>
               ) : it.type === "phone4" ? (
-                <div key={it.id}>
+                <div key={it.id} id={`q-${it.id}`}>
                   <label className="label whitespace-pre-line">{it.text}</label>
                   <input
                     type="text"
@@ -155,7 +178,7 @@ export default function PostSurveyPage() {
                   />
                 </div>
               ) : (
-                <div key={it.id}>
+                <div key={it.id} id={`q-${it.id}`}>
                   <p className="mb-2 text-sm">{it.text}</p>
                   <Likert
                     scale={postSurveyConfig.scale}
@@ -174,10 +197,18 @@ export default function PostSurveyPage() {
 
       {error && <p className="mt-4 text-sm text-destructive">{error}</p>}
 
-      <div className="mt-7 flex justify-end">
+      <div className="mt-7 flex flex-col items-end gap-2">
+        {!allAnswered && (
+          <p className="text-xs text-muted-foreground">
+            带 <span className="text-destructive">*</span> 的题目均为必答；提交前请确认全部完成。
+          </p>
+        )}
         <button
           className="btn-primary"
-          disabled={!allAnswered || busy}
+          // Intentionally NOT disabled on incomplete answers: clicking runs
+          // validation and jumps to the first missing item, instead of a
+          // silently-greyed button that leaves the participant stuck.
+          disabled={busy}
           onClick={submit}
         >
           {busy && <Loader2 className="h-4 w-4 animate-spin" />}

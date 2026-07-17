@@ -9,6 +9,7 @@ import { preSurveyConfig } from "@/lib/forms/preSurveyConfig";
 import { zh } from "@/lib/i18n/zh-CN";
 import { useStudy } from "@/lib/store";
 import { PageBack } from "@/components/PageBack";
+import { saveDraft, loadDraft, clearDraft } from "@/lib/persist";
 
 type Answer = string | number | string[];
 
@@ -20,9 +21,23 @@ export default function PreSurveyPage() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  const draftKey = session ? `pre:${session.sessionId}` : null;
+
   useEffect(() => {
     if (!session) router.replace("/consent");
   }, [session, router]);
+
+  // Restore any in-progress answers after a mobile WebView reload.
+  useEffect(() => {
+    if (!draftKey) return;
+    const saved = loadDraft<Record<string, Answer>>(draftKey);
+    if (saved) setAnswers(saved);
+  }, [draftKey]);
+
+  // Persist on every change so a reload never loses typed answers.
+  useEffect(() => {
+    if (draftKey && Object.keys(answers).length > 0) saveDraft(draftKey, answers);
+  }, [draftKey, answers]);
 
   const allAnswered = useMemo(
     () =>
@@ -45,6 +60,7 @@ export default function PreSurveyPage() {
         method: "POST",
         body: { sessionId: session.sessionId, answers },
       });
+      if (draftKey) clearDraft(draftKey);
       setStep("practice");
       router.push("/practice");
     } catch (e) {
