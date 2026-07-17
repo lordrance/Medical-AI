@@ -165,6 +165,7 @@ export const zh = {
   errors: {
     network: "网络异常，请稍后重试",
     unknown: "出现未知错误",
+    restart: "重新开始",
   },
 } as const;
 

@@ -10,7 +10,7 @@ import { Likert } from "@/components/Likert";
 // possible future restoration via a domestic STT backend.
 // import { VoiceInputButton } from "@/components/VoiceInputButton";
 import { VoiceRecorderButton } from "@/components/VoiceRecorderButton";
-import { api, ApiError } from "@/lib/api/client";
+import { api, ApiError, isSessionInvalid } from "@/lib/api/client";
 import type { PostSurveyResponse } from "@/lib/api/types";
 import { postSurveyConfig } from "@/lib/forms/postSurveyConfig";
 import { zh } from "@/lib/i18n/zh-CN";
@@ -99,6 +99,11 @@ export default function PostSurveyPage() {
       // same answers will fail identically, so tell the participant to
       // re-check their answers instead of showing a "retry later" network
       // message that would strand them in a loop.
+      if (isSessionInvalid(e)) {
+        useStudy.getState().reset();
+        router.replace("/consent");
+        return;
+      }
       if (e instanceof ApiError && e.status === 422) {
         setError(zh.postSurvey.validationFailed);
       } else {

@@ -72,4 +72,7 @@ ENTRYPOINT ["/usr/local/bin/entrypoint.sh"]
 # Gunicorn with 4 async uvicorn workers — handles ~100 concurrent users.
 # Worker count override via WEB_CONCURRENCY env var (gunicorn built-in).
 # Each worker runs its own asyncio event loop for maximum I/O throughput.
-CMD ["gunicorn", "app.main:app", "-k", "uvicorn.workers.UvicornWorker", "-w", "4", "-b", "0.0.0.0:8000", "--access-logfile", "-", "--error-logfile", "-"]
+# --timeout 120: don't SIGKILL a worker at the 30s default if a slow (but
+# now thread-offloaded) admin export briefly runs; 120s is generous headroom
+# while still recovering a genuinely hung worker.
+CMD ["gunicorn", "app.main:app", "-k", "uvicorn.workers.UvicornWorker", "-w", "4", "-b", "0.0.0.0:8000", "--timeout", "120", "--graceful-timeout", "30", "--access-logfile", "-", "--error-logfile", "-"]

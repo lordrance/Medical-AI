@@ -40,6 +40,7 @@ from fastapi import (
     UploadFile,
 )
 from fastapi.responses import FileResponse, Response
+from starlette.concurrency import run_in_threadpool
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -161,9 +162,38 @@ async def export_recordings(
     require_admin(request)
     rows = (await db.execute(select(VoiceRecording))).scalars().all()
 
+    # Extract plain data while still on the event loop (no ORM/DB access in the
+    # worker thread), then build the ZIP (reads every file + DEFLATE, can be
+    # hundreds of MB) off the event loop so it does not freeze this worker and
+    # interrupt participants routed to it.
+    items = [
+        {
+            "id": r.id,
+            "session_id": r.session_id,
+            "question_id": r.question_id,
+            "file_path": r.file_path,
+            "mime_type": r.mime_type,
+            "duration_ms": r.duration_ms if r.duration_ms is not None else "",
+            "file_size_bytes": r.file_size_bytes,
+            "created_at": r.created_at.isoformat() if r.created_at else "",
+        }
+        for r in rows
+    ]
+    payload = await run_in_threadpool(_build_recordings_zip, items)
+
+    return Response(
+        content=payload,
+        media_type="application/zip",
+        headers={
+            "Content-Disposition": 'attachment; filename="voice_recordings.zip"',
+        },
+    )
+
+
+def _build_recordings_zip(items: list[dict]) -> bytes:
+    """Build the recordings ZIP from plain dicts. Runs in a worker thread."""
     buf = io.BytesIO()
     with zipfile.ZipFile(buf, "w", compression=zipfile.ZIP_DEFLATED) as zf:
-        # Build index.csv
         csv_buf = io.StringIO()
         w = csv.writer(csv_buf)
         w.writerow(
@@ -178,29 +208,22 @@ async def export_recordings(
                 "created_at",
             ]
         )
-        for r in rows:
-            p = Path(r.file_path)
-            in_zip = f"{_safe(r.session_id)}/{p.name}" if p.exists() else "(missing)"
+        for it in items:
+            p = Path(it["file_path"])
+            in_zip = f"{_safe(it['session_id'])}/{p.name}" if p.exists() else "(missing)"
             w.writerow(
                 [
-                    r.id,
-                    r.session_id,
-                    r.question_id,
+                    it["id"],
+                    it["session_id"],
+                    it["question_id"],
                     in_zip,
-                    r.mime_type,
-                    r.duration_ms if r.duration_ms is not None else "",
-                    r.file_size_bytes,
-                    r.created_at.isoformat() if r.created_at else "",
+                    it["mime_type"],
+                    it["duration_ms"],
+                    it["file_size_bytes"],
+                    it["created_at"],
                 ]
             )
             if p.exists():
                 zf.writestr(in_zip, p.read_bytes())
         zf.writestr("index.csv", csv_buf.getvalue())
-
-    return Response(
-        content=buf.getvalue(),
-        media_type="application/zip",
-        headers={
-            "Content-Disposition": 'attachment; filename="voice_recordings.zip"',
-        },
-    )
+    return buf.getvalue()

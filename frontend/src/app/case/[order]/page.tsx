@@ -3,7 +3,7 @@
 import { useParams, useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import { CasePage } from "@/components/case/CasePage";
-import { api } from "@/lib/api/client";
+import { api, isSessionInvalid } from "@/lib/api/client";
 import type {
   ActionResponse,
   CaseOpenResponse,
@@ -21,6 +21,15 @@ export default function FormalCasePage() {
   const session = useStudy((s) => s.session);
   const setStep = useStudy((s) => s.setStep);
   const setCaseIndex = useStudy((s) => s.setCaseIndex);
+  const reset = useStudy((s) => s.reset);
+
+  // Escape hatch: clear the (possibly dead) persisted session and start over.
+  // Without this, a session the backend no longer recognizes 404s forever and
+  // "reload" just re-reads the same dead session — a permanent dead-end.
+  function restart() {
+    reset();
+    router.replace("/consent");
+  }
 
   const orderIndex = Number(params.order);
   const [casePayload, setCasePayload] = useState<CasePayload | null>(null);
@@ -62,7 +71,14 @@ export default function FormalCasePage() {
         if (cancelled) return;
         setCasePayload(cr.case);
       } catch (e) {
-        if (!cancelled) setError((e as Error).message);
+        if (cancelled) return;
+        // Dead session → auto-reset and restart, instead of an infinite
+        // reload loop against a session the backend no longer knows.
+        if (isSessionInvalid(e)) {
+          restart();
+          return;
+        }
+        setError((e as Error).message);
         return;
       }
       // Step 2: open the presentation — telemetry-only correlation id. If it
@@ -87,9 +103,17 @@ export default function FormalCasePage() {
     return (
       <div className="card card-section space-y-3 text-center">
         <p className="text-destructive">{zh.errors.network}</p>
-        <button className="btn-primary" onClick={() => window.location.reload()}>
-          {zh.caseUI.retry}
-        </button>
+        <div className="flex justify-center gap-3">
+          <button className="btn-primary" onClick={() => window.location.reload()}>
+            {zh.caseUI.retry}
+          </button>
+          <button
+            className="rounded-md border border-border px-4 py-2 text-sm"
+            onClick={restart}
+          >
+            {zh.errors.restart}
+          </button>
+        </div>
       </div>
     );
   if (!session || !casePayload)

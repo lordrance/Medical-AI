@@ -48,7 +48,12 @@ fi
 
 if [[ "${SEED_ON_START:-true}" == "true" ]]; then
   log "seeding cases & order templates (idempotent)..."
-  python -m app.scripts.seed
+  # Seed is non-fatal: a transient seed error (e.g. a bad data edit) must NOT
+  # crash-loop the backend and, via depends_on, take the whole site offline.
+  # `set -e` would abort on a non-zero exit, so guard it explicitly.
+  if ! python -m app.scripts.seed; then
+    log "WARNING: seeding failed; continuing startup so the site stays up."
+  fi
 fi
 
 log "exec: $*"

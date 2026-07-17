@@ -53,12 +53,27 @@
             header_up Host {host}
             header_up X-Forwarded-For {remote_host}
             header_up X-Forwarded-Proto {scheme}
+            # Ride out a brief backend restart (redeploy / worker recycle):
+            # keep retrying to reach the upstream for a few seconds instead of
+            # instantly returning a bare 502 to a participant mid-submit.
+            lb_try_duration 5s
+            lb_try_interval 250ms
         }
     }
 
     # Backend also exposes /healthz at the top level.
     handle /healthz {
-        reverse_proxy backend:8000
+        reverse_proxy backend:8000 {
+            lb_try_duration 5s
+            lb_try_interval 250ms
+        }
+    }
+
+    # If the backend is still unreachable after the retry window, return a
+    # friendly message instead of a raw 502 white screen. Plain-text keeps the
+    # config simple and reliable; the frontend's own error UI covers the rest.
+    handle_errors {
+        respond "服务正在更新，请稍后刷新页面重试。您的进度已保留。" 503
     }
 
     # Everything else → Next.js

@@ -4,7 +4,7 @@ import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 import { Loader2 } from "lucide-react";
 import { Likert } from "@/components/Likert";
-import { api } from "@/lib/api/client";
+import { api, isSessionInvalid } from "@/lib/api/client";
 import { preSurveyConfig } from "@/lib/forms/preSurveyConfig";
 import { zh } from "@/lib/i18n/zh-CN";
 import { useStudy } from "@/lib/store";
@@ -64,6 +64,11 @@ export default function PreSurveyPage() {
       setStep("practice");
       router.push("/practice");
     } catch (e) {
+      if (isSessionInvalid(e)) {
+        useStudy.getState().reset();
+        router.replace("/consent");
+        return;
+      }
       setError(zh.errors.network);
     } finally {
       setBusy(false);

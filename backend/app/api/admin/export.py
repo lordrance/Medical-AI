@@ -7,6 +7,7 @@ from typing import Any, Literal
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from fastapi.responses import JSONResponse, Response
+from starlette.concurrency import run_in_threadpool
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
@@ -73,7 +74,13 @@ async def export_full_database(request: Request) -> Response:
     """Download entire DB as SQL (SQLite: iterdump; Postgres: pg_dump). Admin only."""
     require_admin(request)
     try:
-        content, filename, media_type = full_database_dump_bytes()
+        # pg_dump / iterdump is a blocking subprocess+IO. Run it in a thread so
+        # it does not freeze this worker's event loop (which would make every
+        # participant routed to this worker hang, and — past gunicorn's timeout
+        # — get the worker SIGKILLed mid-request).
+        content, filename, media_type = await run_in_threadpool(
+            full_database_dump_bytes
+        )
     except RuntimeError as e:
         raise HTTPException(503, str(e)) from e
     return Response(

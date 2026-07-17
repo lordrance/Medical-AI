@@ -73,9 +73,14 @@ services:
     restart: always
     environment:
       NEXT_PUBLIC_API_BASE: /api
+    # service_started (not service_healthy): the frontend + Caddy must come up
+    # and keep 80/443 listening even if the backend is briefly unhealthy (e.g.
+    # a slow first-boot migration). Otherwise nothing listens on 80/443 and
+    # users get "connection refused" — worse than a page that loads and shows a
+    # retryable error. The frontend now tolerates a not-yet-ready API.
     depends_on:
       backend:
-        condition: service_healthy
+        condition: service_started
     expose:
       - "3000"
 

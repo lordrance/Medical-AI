@@ -20,6 +20,21 @@ export class TimeoutError extends Error {
   }
 }
 
+/**
+ * True when the error means the stored session is no longer valid on the
+ * backend (DB reset by a redeploy/migration, session expired, or the
+ * participant returned much later). Callers should reset the persisted store
+ * and send the participant back to /consent to start fresh — otherwise a
+ * "reload" just re-reads the same dead session and 404s forever.
+ */
+export function isSessionInvalid(e: unknown): boolean {
+  return (
+    e instanceof ApiError &&
+    e.status === 404 &&
+    /unknown (session|participant)/i.test(e.body)
+  );
+}
+
 export class ApiError extends Error {
   constructor(public status: number, public body: string) {
     super(`API ${status}: ${body.slice(0, 200)}`);

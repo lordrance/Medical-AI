@@ -3,7 +3,7 @@
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import { CasePage } from "@/components/case/CasePage";
-import { api } from "@/lib/api/client";
+import { api, isSessionInvalid } from "@/lib/api/client";
 import type {
   ActionResponse,
   CaseOpenResponse,
@@ -20,6 +20,12 @@ export default function PracticePage() {
   const session = useStudy((s) => s.session);
   const setStep = useStudy((s) => s.setStep);
   const setCaseIndex = useStudy((s) => s.setCaseIndex);
+  const reset = useStudy((s) => s.reset);
+
+  function restart() {
+    reset();
+    router.replace("/consent");
+  }
   const [casePayload, setCasePayload] = useState<CasePayload | null>(null);
   const [casePresentationId, setCasePresentationId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -50,7 +56,12 @@ export default function PracticePage() {
         if (cancelled) return;
         setCasePayload(cr.case);
       } catch (e) {
-        if (!cancelled) setError((e as Error).message);
+        if (cancelled) return;
+        if (isSessionInvalid(e)) {
+          restart();
+          return;
+        }
+        setError((e as Error).message);
         return;
       }
       // Step 2: telemetry open — non-blocking.
@@ -77,9 +88,17 @@ export default function PracticePage() {
     return (
       <div className="card card-section space-y-3 text-center">
         <p className="text-destructive">{zh.errors.network}</p>
-        <button className="btn-primary" onClick={() => window.location.reload()}>
-          {zh.caseUI.retry}
-        </button>
+        <div className="flex justify-center gap-3">
+          <button className="btn-primary" onClick={() => window.location.reload()}>
+            {zh.caseUI.retry}
+          </button>
+          <button
+            className="rounded-md border border-border px-4 py-2 text-sm"
+            onClick={restart}
+          >
+            {zh.errors.restart}
+          </button>
+        </div>
       </div>
     );
   if (!session || !casePayload)
