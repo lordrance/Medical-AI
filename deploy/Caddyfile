@@ -28,7 +28,11 @@
     }
 }
 
-medraftlab.com, www.medraftlab.com, {$SITE_DOMAIN} {
+# medraftlab.com temporarily removed during ICP filing review —
+# regulator requires the domain to be inaccessible until approved.
+# The DNS A record stays; once ICP is approved, uncomment and redeploy.
+# medraftlab.com, www.medraftlab.com,
+{$SITE_DOMAIN} {
     # Caddy auto-provisions Let's Encrypt certificates by default — no
     # `tls` directive needed for the happy path. (We used to have
     # `tls {$ACME_EMAIL}` here, which broke when ACME_EMAIL was empty
