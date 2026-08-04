@@ -33,8 +33,9 @@ export default function RootLayout({
             </div>
           </header>
           <main className="animate-fade-in">{children}</main>
-          <footer className="mt-16 border-t border-border pt-4 text-xs text-muted-foreground">
-            {zh.app.footer}
+          <footer className="mt-16 border-t border-border pt-4 text-xs text-muted-foreground space-y-1">
+            <p>{zh.app.footer}</p>
+            <p><a href="https://beian.miit.gov.cn/" target="_blank" rel="noopener noreferrer">闽ICP备2026029270号</a></p>
           </footer>
         </div>
       </body>
