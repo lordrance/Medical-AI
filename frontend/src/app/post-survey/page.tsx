@@ -9,7 +9,15 @@ import { Likert } from "@/components/Likert";
 // Component source kept at frontend/src/components/VoiceInputButton.tsx for
 // possible future restoration via a domestic STT backend.
 // import { VoiceInputButton } from "@/components/VoiceInputButton";
-import { VoiceRecorderButton } from "@/components/VoiceRecorderButton";
+// V4: audio recording for the L1/L2/L3 open-ended items is switched off.
+// It was the least reliable part of the study — it needs microphone
+// permission, a MediaRecorder-capable browser, and a multi-MB upload over a
+// mobile connection, and a storage-side failure showed the participant an
+// alarming error on the very last page. The written answers are what the
+// analysis uses, so the feature buys little and can only cost completions.
+// Component source kept at frontend/src/components/VoiceRecorderButton.tsx;
+// restore by un-commenting this import and the JSX block below.
+// import { VoiceRecorderButton } from "@/components/VoiceRecorderButton";
 import { api, ApiError, isSessionInvalid } from "@/lib/api/client";
 import type { PostSurveyResponse } from "@/lib/api/types";
 import { postSurveyConfig } from "@/lib/forms/postSurveyConfig";
@@ -154,6 +162,7 @@ export default function PostSurveyPage() {
                       setAnswers({ ...answers, [it.id]: e.target.value })
                     }
                   />
+                  {/* V4: voice recording disabled (see file header).
                   {session && (
                     <div className="mt-2 rounded-md border border-border/60 bg-muted/30 px-3 py-2">
                       <p className="mb-1 text-xs font-medium text-foreground/80">
@@ -164,7 +173,7 @@ export default function PostSurveyPage() {
                         questionId={it.id}
                       />
                     </div>
-                  )}
+                  )} */}
                 </div>
               ) : it.type === "phone4" ? (
                 <div key={it.id} id={`q-${it.id}`}>
