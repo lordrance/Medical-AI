@@ -2,10 +2,12 @@ from __future__ import annotations
 
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, ValidationError
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import db_session
 from app.db.base import utcnow
+from app.db.locks import session_write_lock
 from app.db.models import Participant, PostSurvey, Session, UiEvent
 from app.schemas.post_survey_payload import PostSurveyV7Payload
 from app.services.analysis import session_formal_performance
@@ -90,25 +92,39 @@ async def submit_post_survey(
         ]
         raise HTTPException(status_code=422, detail=safe_errors) from e
 
-    db.add(
-        PostSurvey(
-            participant_id=session.participant_id,
-            session_id=session.id,
-            payload=validated.model_dump(),
-        )
-    )
-    now = utcnow()
-    session.status = "completed"
-    session.ended_at = now
-
-    participant = await db.get(Participant, session.participant_id)
-    if participant is not None:
-        participant.completed_flag = True
-        participant.completed_at = now
-
     completion_code = f"AIDR-{session.participant_id[-8:].upper()}"
-    performance = await session_formal_performance(db, session.id)
-    await db.commit()
+
+    # This is the last step of the study, so a stalled request the
+    # participant retries would otherwise write a second post_survey row and
+    # double-count them in every export. Serialize + skip on re-submit; the
+    # first answers win and the retry still gets its completion code.
+    async with session_write_lock(db, session.id):
+        already = (
+            await db.execute(
+                select(PostSurvey.id).where(PostSurvey.session_id == session.id).limit(1)
+            )
+        ).scalars().first()
+
+        if already is None:
+            db.add(
+                PostSurvey(
+                    participant_id=session.participant_id,
+                    session_id=session.id,
+                    payload=validated.model_dump(),
+                )
+            )
+            now = utcnow()
+            session.status = "completed"
+            session.ended_at = now
+
+            participant = await db.get(Participant, session.participant_id)
+            if participant is not None:
+                participant.completed_flag = True
+                participant.completed_at = now
+
+        performance = await session_formal_performance(db, session.id)
+        await db.commit()
+
     return {
         "ok": True,
         "completionCode": completion_code,

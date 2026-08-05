@@ -1,0 +1,45 @@
+# Isolated load-test stack: Postgres + backend only, same images and same
+# gunicorn worker count as production, exposed on localhost:8001.
+#
+# Why not just point the load test at the production server: a 100-user write
+# test would put 100 fake participants into the real research database. The
+# concurrency bugs it hunts are application bugs, so they reproduce here just
+# as well, and here the database is disposable.
+#
+#   docker compose -f tests/load/docker-compose.loadtest.yml up -d --build
+#   k6 run --vus 100 --duration 3m tests/load/k6-full-flow.js
+#   docker compose -f tests/load/docker-compose.loadtest.yml down -v
+#
+# `down -v` drops the volume — never point this file at production data.
+
+name: medai-loadtest
+
+services:
+  db:
+    image: postgres:15-alpine
+    environment:
+      POSTGRES_USER: medai
+      POSTGRES_PASSWORD: loadtest
+      POSTGRES_DB: medai
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U medai"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  backend:
+    build:
+      context: ../../backend
+    environment:
+      DATABASE_URL: postgresql+asyncpg://medai:loadtest@db:5432/medai
+      ADMIN_TOKEN: loadtest-token
+      CORS_ORIGINS: '["*"]'
+      LLM_PROVIDER: disabled
+      RUN_MIGRATIONS: "true"
+      SEED_ON_START: "true"
+      APP_ENV: production
+    depends_on:
+      db:
+        condition: service_healthy
+    ports:
+      - "8001:8000"

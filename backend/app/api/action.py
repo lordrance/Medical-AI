@@ -10,6 +10,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from app.api.deps import db_session
+from app.db.locks import session_write_lock
 from app.db.models import Action, Case, CasePresentation, CaseSurvey, Session
 from app.schemas.action_reason import ActionReasonCode
 from app.schemas.common import EscalateSubtype, LOG_FINAL_ACTION_PDF, SelectedAction
@@ -153,20 +154,33 @@ async def submit_action(body: ActionIn, db: AsyncSession = Depends(db_session)) 
     if case is None:
         raise HTTPException(404, "Unknown case")
 
+    # A stalled submit that the participant retries leaves two identical
+    # requests in flight. Serialize them so the "already answered?" check
+    # below is authoritative; otherwise both pass it and the second insert
+    # violates the UNIQUE on actions.case_presentation_id → 500.
+    async with session_write_lock(db, session.id):
+        return await _persist_action(db, session, case, body)
+
+
+async def _persist_action(
+    db: AsyncSession, session: Session, case: Case, body: ActionIn
+) -> ActionResponse:
     existing_stmt = (
         select(CasePresentation)
         .where(
             CasePresentation.session_id == session.id,
             CasePresentation.case_id == case.id,
         )
+        .order_by(CasePresentation.started_at.asc())
         .options(selectinload(CasePresentation.action))
     )
-    existing_pres = (await db.execute(existing_stmt)).scalars().first()
-    if existing_pres is not None and existing_pres.action is not None:
+    existing_pres = (await db.execute(existing_stmt)).scalars().all()
+    answered = next((p for p in existing_pres if p.action is not None), None)
+    if answered is not None:
         return ActionResponse(
             ok=True,
-            casePresentationId=existing_pres.id,
-            editDistance=existing_pres.action.edit_distance or 0,
+            casePresentationId=answered.id,
+            editDistance=answered.action.edit_distance or 0,
         )
 
     in_progress_stmt = (

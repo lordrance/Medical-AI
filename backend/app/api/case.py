@@ -8,6 +8,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import db_session
+from app.db.locks import session_write_lock
 from app.db.models import Action, Case, CasePresentation, Participant, Session
 from app.schemas.case import CasePayload, CaseResponse
 
@@ -88,6 +89,17 @@ async def open_case(
     if case is None:
         raise HTTPException(404, "Case not found")
 
+    # Two opens for the same case can overlap (a retried request, a fast
+    # back-forward). Without serialization both miss the reuse lookup below
+    # and each inserts its own row — production had accumulated 23 such
+    # duplicate presentations before this guard.
+    async with session_write_lock(db, session.id):
+        return await _open_presentation(db, session, case, body.orderIndex)
+
+
+async def _open_presentation(
+    db: AsyncSession, session: Session, case: Case, order_index: int
+) -> CaseOpenOut:
     reuse_stmt = (
         select(CasePresentation)
         .outerjoin(Action, Action.case_presentation_id == CasePresentation.id)
@@ -101,7 +113,7 @@ async def open_case(
     )
     existing = (await db.execute(reuse_stmt)).scalars().first()
     if existing is not None:
-        existing.order_index = body.orderIndex
+        existing.order_index = order_index
         await db.commit()
         return CaseOpenOut(casePresentationId=existing.id)
 
@@ -109,7 +121,7 @@ async def open_case(
     pres = CasePresentation(
         session_id=session.id,
         case_id=case.id,
-        order_index=body.orderIndex,
+        order_index=order_index,
         started_at=now,
         ended_at=None,
         duration_ms=None,
