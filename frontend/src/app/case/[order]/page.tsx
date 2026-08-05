@@ -13,7 +13,6 @@ import type {
 import { logEvent } from "@/lib/logger";
 import { useStudy } from "@/lib/store";
 import { zh } from "@/lib/i18n/zh-CN";
-import { PageBack } from "@/components/PageBack";
 
 export default function FormalCasePage() {
   const router = useRouter();
@@ -123,7 +122,9 @@ export default function FormalCasePage() {
 
   return (
     <>
-      <PageBack />
+      {/* No back button during the cases: the study is forward-only. The
+          server keeps the first answer for a case, so going back and
+          re-answering would look like it saved but silently change nothing. */}
       <CasePage
         casePayload={casePayload}
         progressCurrent={orderIndex + 1}

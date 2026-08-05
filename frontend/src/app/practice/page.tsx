@@ -13,7 +13,6 @@ import type {
 import { logEvent } from "@/lib/logger";
 import { useStudy } from "@/lib/store";
 import { zh } from "@/lib/i18n/zh-CN";
-import { PageBack } from "@/components/PageBack";
 
 export default function PracticePage() {
   const router = useRouter();
@@ -106,7 +105,7 @@ export default function PracticePage() {
 
   return (
     <>
-      <PageBack />
+      {/* Forward-only, same as the formal cases. */}
       <CasePage
         casePayload={casePayload}
         progressCurrent={0}
