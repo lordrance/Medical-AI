@@ -17,24 +17,17 @@
 --------------------------------------------------------------------------------
 本文件的代码块（从上到下）：
 --------------------------------------------------------------------------------
-  第 1 块  导入区            搬工具
-  第 2 块  logger            日志记录器，出错时往服务器日志里写
-  第 3 块  router            路由器，接口挂在 /api/ui-event
-  第 4 块  UiEventIn         定义"前端发上来的数据长什么样"
-  第 5 块  submit_event()    ★ 干活的函数：写一行埋点，出错就吞掉
+  第 1 块  logger            日志记录器，出错时往服务器日志里写
+  第 2 块  router            路由器，接口挂在 /api/ui-event
+  第 3 块  UiEventIn         定义"前端发上来的数据长什么样"
+  第 4 块  submit_event()    ★ 干活的函数：写一行埋点，出错就吞掉
 ================================================================================
 """
 
-# ── 第 1 块：导入区 ──────────────────────────────────────────────────────────
 from __future__ import annotations
 
-# Python 自带的日志模块。
 import logging
-
-# datetime：日期时间类型。前端会传一个浏览器本地时间戳过来。
 from datetime import datetime
-
-# Any 表示"任意类型"。埋点的附加信息什么都可能有，所以用它。
 from typing import Any
 
 from fastapi import APIRouter, Depends
@@ -42,20 +35,20 @@ from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import db_session
-from app.db.models import UiEvent   # ui_events 这张表
+from app.db.models import UiEvent
 
 
-# ── 第 2 块：日志记录器 ──────────────────────────────────────────────────────
+# ── 第 1 块：日志记录器 ──────────────────────────────────────────────────────
 # __name__ 是当前模块的名字（这里是 "app.api.ui_event"）。
 # 用它当日志名字的好处是：看服务器日志时一眼就知道这条是哪个文件打的。
 logger = logging.getLogger(__name__)
 
 
-# ── 第 3 块：路由器 ──────────────────────────────────────────────────────────
+# ── 第 2 块：路由器 ──────────────────────────────────────────────────────────
 router = APIRouter(prefix="/api/ui-event", tags=["ui-event"])
 
 
-# ── 第 4 块：前端发上来的数据格式 ────────────────────────────────────────────
+# ── 第 3 块：前端发上来的数据格式 ────────────────────────────────────────────
 class UiEventIn(BaseModel):
     """一条埋点。前端每次只发一条。"""
 
@@ -84,14 +77,14 @@ class UiEventIn(BaseModel):
     clientTs: datetime | None = None
 
 
-# ── 第 5 块：写埋点的函数 ────────────────────────────────────────────────────
+# ── 第 4 块：写埋点的函数 ────────────────────────────────────────────────────
 @router.post("")
 async def submit_event(
     body: UiEventIn, db: AsyncSession = Depends(db_session)
 ) -> dict:
     """POST /api/ui-event —— 记录一条行为埋点。
 
-    参数 body 由 FastAPI 自动填充：它会把前端发来的 JSON 按第 4 块的格式
+    参数 body 由 FastAPI 自动填充：它会把前端发来的 JSON 按第 3 块的格式
     解析并检查，格式不对直接返回 422，根本进不到这个函数里。
     """
     # fire-and-forget semantics: never raise to client even on failure

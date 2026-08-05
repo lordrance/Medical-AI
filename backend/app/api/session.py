@@ -14,46 +14,26 @@
 --------------------------------------------------------------------------------
 本文件的代码块（从上到下）：
 --------------------------------------------------------------------------------
-  第 1 块  导入区              把要用到的工具从别的文件搬进来
-  第 2 块  SINGLE_CONDITION    一个常量，标记"本研究只有一种实验条件"
-  第 3 块  router              路由器，声明本文件的接口挂在 /api/session 下
-  第 4 块  SessionCreatedResponse   定义"返回给浏览器的数据长什么样"
-  第 5 块  create_session()    ★ 真正干活的函数，上面说的三件事都在这里
+  第 1 块  SINGLE_CONDITION    一个常量，标记"本研究只有一种实验条件"
+  第 2 块  router              路由器，声明本文件的接口挂在 /api/session 下
+  第 3 块  SessionCreatedResponse   定义"返回给浏览器的数据长什么样"
+  第 4 块  create_session()    ★ 真正干活的函数，上面说的三件事都在这里
 ================================================================================
 """
 
-# ── 第 1 块：导入区 ──────────────────────────────────────────────────────────
-# from __future__ import annotations 是 Python 的一个开关。
-# 打开后，函数签名里写的类型（比如 -> SessionCreatedResponse）只当注解看，
-# 不会在定义函数时就去求值。好处是可以引用还没定义的类型，也稍微快一点。
 from __future__ import annotations
 
-# APIRouter：用来把一组接口打包；Depends：声明"这个参数请框架帮我准备好"；
-# HTTPException：想返回错误码时抛它（比如 404）。
 from fastapi import APIRouter, Depends, HTTPException
-
-# BaseModel：定义数据格式的基类。继承它之后，FastAPI 会自动做类型检查、
-# 自动生成接口文档、自动转成 JSON。
 from pydantic import BaseModel
-
-# select：写数据库查询语句用的，相当于 SQL 里的 SELECT。
 from sqlalchemy import select
-
-# AsyncSession：一次数据库会话。"async" 表示它是异步的——等数据库返回的时候
-# 可以先去处理别人的请求，不干等着。100 人同时在线全靠这个。
 from sqlalchemy.ext.asyncio import AsyncSession
 
-# db_session：我们自己写的"发一个数据库会话"的函数（在 api/deps.py）。
 from app.api.deps import db_session
-
-# 这四个是数据库里的表。每个类对应一张表，类的属性对应表的列。
 from app.db.models import Case, OrderTemplate, Participant, Session, UiEvent
-
-# 抽题目顺序的函数（在 services/randomization.py）。
 from app.services.randomization import pick_order_template_id
 
 
-# ── 第 2 块：实验条件常量 ────────────────────────────────────────────────────
+# ── 第 1 块：实验条件常量 ────────────────────────────────────────────────────
 # V4: single-condition study. condition field retained on Participant /
 # session_started UiEvent for schema continuity but always "single".
 #
@@ -65,13 +45,13 @@ from app.services.randomization import pick_order_template_id
 SINGLE_CONDITION: str = "single"
 
 
-# ── 第 3 块：路由器 ──────────────────────────────────────────────────────────
+# ── 第 2 块：路由器 ──────────────────────────────────────────────────────────
 # 创建一个路由器，声明本文件里所有接口的网址都以 /api/session 开头。
 # tags 只影响自动生成的接口文档，把相关接口归到一组，方便翻。
 router = APIRouter(prefix="/api/session", tags=["session"])
 
 
-# ── 第 4 块：返回数据的格式 ──────────────────────────────────────────────────
+# ── 第 3 块：返回数据的格式 ──────────────────────────────────────────────────
 class SessionCreatedResponse(BaseModel):
     """建档成功后返回给浏览器的那一包数据。
 
@@ -99,10 +79,10 @@ class SessionCreatedResponse(BaseModel):
     practiceCaseId: str
 
 
-# ── 第 5 块：建档函数 ★ 核心 ────────────────────────────────────────────────
+# ── 第 4 块：建档函数 ★ 核心 ────────────────────────────────────────────────
 # @router.post("") 的意思是：把下面这个函数注册成一个接口，
 # 用 POST 方法访问，网址就是路由器的前缀本身，也就是 /api/session。
-# response_model 告诉 FastAPI 按第 4 块定义的格式返回，多余字段会被自动过滤掉。
+# response_model 告诉 FastAPI 按第 3 块定义的格式返回，多余字段会被自动过滤掉。
 @router.post("", response_model=SessionCreatedResponse)
 async def create_session(db: AsyncSession = Depends(db_session)) -> SessionCreatedResponse:
     """POST /api/session —— 给一位医生建档。

@@ -14,48 +14,35 @@
 --------------------------------------------------------------------------------
 本文件的代码块（从上到下）：
 --------------------------------------------------------------------------------
-  第 1 块  导入区
-  第 2 块  router                路由器，接口挂在 /api/case 下
-  第 3 块  设计说明注释          ★ 全项目最重要的一条研究规矩写在这里
-  第 4 块  get_case()            取题目内容
-  第 5 块  CaseOpenIn / Out      第 6 块接口的输入输出格式
-  第 6 块  open_case()           记录"开始看这道题"（外壳，负责加锁）
-  第 7 块  _open_presentation()  真正干活的部分（在锁里面执行）
+  第 1 块  router                路由器，接口挂在 /api/case 下
+  第 2 块  设计说明注释          ★ 全项目最重要的一条研究规矩写在这里
+  第 3 块  get_case()            取题目内容
+  第 4 块  CaseOpenIn / Out      第 5 块接口的输入输出格式
+  第 5 块  open_case()           记录"开始看这道题"（外壳，负责加锁）
+  第 6 块  _open_presentation()  真正干活的部分（在锁里面执行）
 ================================================================================
 """
 
-# ── 第 1 块：导入区 ──────────────────────────────────────────────────────────
 from __future__ import annotations
 
-# datetime：日期时间类型；timezone：时区。
-# 全项目统一用 UTC 时间存储，显示时再转成本地时间。
 from datetime import datetime, timezone
 
-# Query：声明"这个参数从网址的问号后面取"（如 ?sessionId=abc）。
 from fastapi import APIRouter, Depends, HTTPException, Query
-
-# Field：给字段加额外约束（比如"必须大于等于 -1"）。
 from pydantic import BaseModel, Field
-
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import db_session
-
-# session_write_lock：给同一个人的写操作排队的锁，见 db/locks.py。
 from app.db.locks import session_write_lock
-
 from app.db.models import Action, Case, CasePresentation, Participant, Session
-
-# CasePayload：发给前端的题目格式（只含医生该看到的字段）。
 from app.schemas.case import CasePayload, CaseResponse
 
 
-# ── 第 2 块：路由器 ──────────────────────────────────────────────────────────
+# ── 第 1 块：路由器 ──────────────────────────────────────────────────────────
 router = APIRouter(prefix="/api/case", tags=["case"])
 
 
-# ── 第 3 块：设计说明 ★ 全项目最重要的规矩 ──────────────────────────────────
+# ── 第 2 块：设计说明 ★ 全项目最重要的规矩 ──────────────────────────────────
 # V4 design constraint: the AI draft shown to every participant for a given
 # case must be byte-identical, otherwise the AI text becomes an uncontrolled
 # experimental variable. So we never invoke the LLM during participant case
@@ -89,7 +76,7 @@ router = APIRouter(prefix="/api/case", tags=["case"])
 # ────────────────────────────────────────────────────────────────────────────
 
 
-# ── 第 4 块：取题目内容 ──────────────────────────────────────────────────────
+# ── 第 3 块：取题目内容 ──────────────────────────────────────────────────────
 # 网址里的 {case_id} 是可变部分，比如 /api/case/case_03。
 # FastAPI 会自动把它填进下面同名的参数。
 @router.get("/{case_id}", response_model=CaseResponse)
@@ -152,7 +139,7 @@ async def get_case(
         riskLevel=case.risk_level,          # 高/低风险，目前前端不显示
         patientMessage=case.patient_message,  # 患者发来的消息
         chartSnapshot=case.chart_snapshot,    # 病历摘要
-        aiDraft=case.ai_draft,                # ★ AI 起草的回复（写死的，见第 3 块）
+        aiDraft=case.ai_draft,                # ★ AI 起草的回复（写死的，见第 2 块）
         guardrail=None,                       # V4 不显示风险提示面板
     )
 
@@ -161,7 +148,7 @@ async def get_case(
     return CaseResponse(case=payload)
 
 
-# ── 第 5 块：/api/case/open 的输入输出格式 ──────────────────────────────────
+# ── 第 4 块：/api/case/open 的输入输出格式 ──────────────────────────────────
 class CaseOpenIn(BaseModel):
     """前端调 /api/case/open 时发上来的数据。"""
 
@@ -180,7 +167,7 @@ class CaseOpenOut(BaseModel):
     casePresentationId: str
 
 
-# ── 第 6 块：记录"开始看这道题"（外壳，负责加锁）────────────────────────────
+# ── 第 5 块：记录"开始看这道题"（外壳，负责加锁）────────────────────────────
 @router.post("/open", response_model=CaseOpenOut)
 async def open_case(
     body: CaseOpenIn,
@@ -228,7 +215,7 @@ async def open_case(
         return await _open_presentation(db, session, case, body.orderIndex)
 
 
-# ── 第 7 块：真正干活的部分 ──────────────────────────────────────────────────
+# ── 第 6 块：真正干活的部分 ──────────────────────────────────────────────────
 # 函数名前面的下划线是 Python 的约定，表示"这是内部函数，别从外面直接调"。
 async def _open_presentation(
     db: AsyncSession, session: Session, case: Case, order_index: int
