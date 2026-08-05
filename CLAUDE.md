@@ -69,6 +69,33 @@ These are easy to break by accident and break the research, not just the code.
 - DB metadata columns and frontend API DTOs use **camelCase** (e.g. `sessionId`, `casePresentationId`, `payloadJson`).
 - Don't "normalize" the naming. The split is intentional and matches the published research instrument.
 
+### B2. Participant writes must go through `session_write_lock`
+
+Every participant-side write endpoint (`/api/action`, `/api/case/open`,
+`/api/post-survey`) is a SELECT-then-INSERT: "does a row for this case already
+exist? no → create it". That races whenever one participant has two requests in
+flight, which happens routinely — the frontend gives up on a stalled submit
+after 25s and the participant taps 提交 again, while the first request is still
+running server-side (aborting a `fetch` does not cancel the FastAPI handler).
+
+Before this guard, `/api/action` returned **HTTP 500** to the loser of that race
+(unique violation on `actions.case_presentation_id`), which is one real source
+of the "网络异常，请稍后重试" participants reported, and `/api/case/open` had
+already left 23 duplicate rows in the production database.
+
+So: **any new participant write endpoint must wrap its whole handler body —
+commit included — in `session_write_lock(db, session_id)`**
+([`backend/app/db/locks.py`](backend/app/db/locks.py)). It is keyed by session,
+so it only serializes one person's own requests. Regressions live in
+[`backend/tests/test_concurrency.py`](backend/tests/test_concurrency.py).
+
+### B3. The participant flow is forward-only
+
+Case pages deliberately render no back button, and the server keeps the **first**
+answer for a case (later submits return the original response idempotently).
+If you add navigation back into an answered case, the participant will appear to
+change their answer while nothing is saved. Don't.
+
 ### C. Case data integrity
 
 - `backend/data/cases.json` defines the 8 formal cases + 1 practice case. The gold-action distribution is locked at **1 send_as_is / 3 edit_then_send / 3 discard_and_rewrite / 1 escalate** per the V3 PDF brief — tested by [`test_v3_gold_action_distribution`](backend/tests/test_seed.py).
@@ -97,14 +124,38 @@ For frontend changes:
 ```bash
 cd frontend
 npm run typecheck
+npm run build
 ```
+
+Before anything that touches a participant write path or gets deployed to real
+participants, also run the load tests:
+
+```bash
+# 100 concurrent users, full flow, against a disposable production-shaped stack
+# (real Postgres + gunicorn 4 workers). 20% of submits are sent twice on purpose.
+docker compose -f tests/load/docker-compose.loadtest.yml up -d --build
+k6 run tests/load/k6-full-flow.js
+docker compose -f tests/load/docker-compose.loadtest.yml down -v
+
+# post-deploy check against production: 3 flows, EVERY submit sent twice
+BASE=https://medraftlab.com VERIFY=1 DOUBLE_SUBMIT_RATE=1.0 k6 run tests/load/k6-full-flow.js
+```
+
+Never point the write load test at production — it writes one fake participant
+per iteration. `k6-production-read.js` is the read-only one that is safe there.
+The production server is 2 vCPU / 2 GB / **4 Mbps**; a cold first visit pulls
+142 KB, so bandwidth (not CPU) is the ceiling if many people open the site at
+the same instant.
 
 ### F. Commit hygiene
 
 - One commit per logical change. Don't bundle unrelated work.
 - Use conventional commit prefixes already in the repo's history: `feat(...)`, `fix(...)`, `chore(...)`, `test(...)`, `docs(...)`, `refactor(...)`.
 - Don't skip hooks (`--no-verify`) or amend pushed commits.
-- All commits should include `Co-Authored-By: Claude Opus 4.7 (1M context) <noreply@anthropic.com>` per existing convention.
+- All commits should include a `Co-Authored-By:` trailer naming **the model that
+  actually wrote the change** (e.g. `Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>`).
+  Older commits say "Claude Opus 4.7 (1M context)" — don't copy that line onto
+  work a different model did; the trailer is a record, not a template.
 
 ### G. Docker
 
