@@ -46,6 +46,9 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 # Only used on the SQLite path (single process, bounded by the number of
 # sessions a test run creates), so unbounded growth is not a concern.
+#
+# 中文：只在 SQLite（本地开发 / 测试）路径上用。测试是单进程的，
+# 一次跑下来最多几十个 session，所以这个字典无限增长也无所谓。
 _local_locks: dict[str, asyncio.Lock] = defaultdict(asyncio.Lock)
 
 
@@ -55,17 +58,35 @@ async def session_write_lock(db: AsyncSession, session_id: str) -> AsyncIterator
 
     Must wrap the *whole* handler body, commit included: releasing before the
     commit would reopen the very window this closes.
+
+    中文：给「同一个人」的写请求排队。用法：
+
+        async with session_write_lock(db, session.id):
+            ...查、写、commit 全都要放在里面...
+
+    ★ 必须把 commit 也包进来。如果提前放锁，第二个请求就会在第一个
+    还没提交时进来，照样查不到数据、照样重复写——等于白加。
     """
     if db.bind is not None and db.bind.dialect.name == "postgresql":
         # hashtext() maps the session id to the int the advisory-lock API
         # takes. A collision would merely make two unrelated participants
         # take turns for a few milliseconds, never a correctness problem.
+        #
+        # 中文：生产环境（Postgres）用「事务级咨询锁」。
+        # - 它由数据库统一管理，所以 4 个 gunicorn 进程之间都有效
+        #   （同一个人的两个请求很可能被分到不同进程，进程内的锁挡不住）。
+        # - 「事务级」意味着 commit 或 rollback 时自动释放，
+        #   不会因为代码漏写解锁而永久卡死。
+        # - hashtext 把 session id 转成锁 API 要的整数。极小概率两个不同的
+        #   session 算出同一个数，后果也只是两个陌生人排队几毫秒，不影响正确性。
         await db.execute(
             text("SELECT pg_advisory_xact_lock(hashtext(:key)::bigint)"),
             {"key": session_id},
         )
-        yield
+        yield  # ← 调用方的代码在这里执行
         return
 
+    # SQLite 没有咨询锁，但它本来就是单进程跑的，
+    # 用 Python 自带的 asyncio 锁效果完全等价。
     async with _local_locks[session_id]:
         yield

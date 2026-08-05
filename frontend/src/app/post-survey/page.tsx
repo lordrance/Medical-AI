@@ -55,11 +55,12 @@ export default function PostSurveyPage() {
     if (draftKey && Object.keys(answers).length > 0) saveDraft(draftKey, answers);
   }, [draftKey, answers]);
 
+  /** 判断某道题算不算答了。三种题型判断标准不同。 */
   const isItemAnswered = (it: { id: string; type?: string }): boolean => {
     const v = answers[it.id];
-    if (it.type === "text") return typeof v === "string" && v.trim().length > 0;
-    if (it.type === "phone4") return typeof v === "string" && /^\d{4}$/.test(v);
-    return typeof v === "number"; // likert
+    if (it.type === "text") return typeof v === "string" && v.trim().length > 0;   // 开放题：非空白
+    if (it.type === "phone4") return typeof v === "string" && /^\d{4}$/.test(v);   // 手机尾号：正好 4 位数字
+    return typeof v === "number"; // likert  量表题：选了某个分数
   };
 
   const allAnswered = useMemo(() => {
@@ -69,19 +70,29 @@ export default function PostSurveyPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [answers]);
 
-  /** First unanswered required item, in page order — for scroll-to + hint. */
+  /** First unanswered required item, in page order — for scroll-to + hint.
+   *
+   * 中文：找出按页面顺序第一道没答的题，以及还差几道。
+   * 后测有 40 多道题，医生漏答一道自己很难找到，所以要主动帮他定位。
+   */
   function firstMissing(): { id: string; count: number } | null {
+    // flatMap 把「分组 → 题目」的两层结构摊平成一个题目列表
     const items = postSurveyConfig.blocks.flatMap((b) => b.items);
     const missing = items.filter((it) => !isItemAnswered(it));
     if (missing.length === 0) return null;
     return { id: missing[0].id, count: missing.length };
   }
 
+  /** ★ 提交后测问卷 —— 整个研究的最后一步，成功后拿到完成码。 */
   async function submit() {
     if (!session) return;
     // Instead of a silently-disabled button, tell the participant exactly
     // what is left and jump them to it (they may have missed the attention
     // check or the phone field near the end).
+    //
+    // 中文：不把按钮灰掉，而是让医生点了之后明确告诉他「还差 N 题」
+    // 并自动滚动到第一道没答的题。40 多道题里漏一道，
+    // 灰按钮会让人完全不知道问题出在哪，直接放弃。
     const miss = firstMissing();
     if (miss) {
       setError(`还有 ${miss.count} 道必答题未完成，已为您跳转到第一道未完成的题目。`);

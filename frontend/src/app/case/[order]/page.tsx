@@ -1,5 +1,15 @@
 "use client";
 
+/**
+ * 正式题页面。8 道题共用这一个文件，靠网址里的数字区分：
+ * /case/0 是第 1 题、/case/7 是第 8 题。（[order] 就是这个可变部分。）
+ *
+ * 这个文件只负责「取数据 + 跳转」，界面本身在 components/case/CasePage.tsx。
+ *
+ * ★ 流程只能向前：这里不渲染「返回」按钮。因为服务器保留首次作答，
+ *   退回去改答案会「看起来保存了其实没变」，比不给这个选项更糟。
+ */
+
 import { useParams, useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import { CasePage } from "@/components/case/CasePage";
@@ -40,11 +50,14 @@ export default function FormalCasePage() {
     casePresentationIdRef.current = casePresentationId;
   }, [casePresentationId]);
 
+  // 这个 useEffect 在「换题」时触发（orderIndex 变了），负责加载题目内容。
   useEffect(() => {
+    // 没有会话 = 直接输网址进来的，或者本地数据被清了 → 回到入口
     if (!session) {
       router.replace("/consent");
       return;
     }
+    // 网址里的题号不合法（不是数字、越界）→ 说明 8 道题做完了，去后测
     if (
       Number.isNaN(orderIndex) ||
       orderIndex < 0 ||
@@ -53,10 +66,12 @@ export default function FormalCasePage() {
       router.replace("/post-survey");
       return;
     }
+    // 清空上一题的残留，否则会闪现上一题的内容
     setCasePayload(null);
     setCasePresentationId(null);
     setError(null);
     setCaseIndex(orderIndex);
+    // 从建档时拿到的题目顺序里取出这一题的 ID
     const caseId = session.caseOrder[orderIndex];
     // Guard against a stale response landing after the participant already
     // navigated to another case (rapid next-clicks / back-forward).
@@ -138,6 +153,10 @@ export default function FormalCasePage() {
             casePresentationIdRef.current ?? undefined,
           )
         }
+      // 医生点「提交」时 CasePage 会调这个函数。
+      // ★ 注意这里故意不 try/catch：出错要让异常往上抛给 CasePage，
+      // 它才能显示「提交失败」并让医生重试。而且只有成功才会走到下面的
+      // 跳转——失败就停在原地，答案不会丢。
       onSubmit={async (result) => {
         await api<ActionResponse>("/api/action", {
           method: "POST",
@@ -146,9 +165,10 @@ export default function FormalCasePage() {
             caseId: casePayload.id,
             orderIndex,
             isPractice: false,
-            ...result,
+            ...result,  // CasePage 收集的选择、文本、理由、量表、行为数据
           },
         });
+        // 提交成功 → 下一题；已经是最后一题 → 去后测问卷
         const next = orderIndex + 1;
         if (next >= total) {
           setStep("post_survey");

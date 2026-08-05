@@ -1,3 +1,26 @@
+"""★ 研究统计的核心。所有分析指标都在这里算出来。
+
+被两个地方调用：
+  - 管理后台的看板和导出（api/admin/）
+  - 医生提交后测时算「你答对了几道」（api/survey.py）
+
+这个文件不碰 HTTP、不管前端，只做纯计算，所以最容易单独测试。
+
+主要函数：
+  session_formal_performance  某个人答对几道（完成页展示用）
+  completion_stats            总人数 / 完成人数
+  confusion_matrix            混淆矩阵：标准答案 vs 医生实际选择
+  per_case_stats              每道题的统计（哪道题最容易出错）
+  per_participant_stats       每个人的统计（谁在敷衍了事）
+  log_stats_overall           整体行为指标
+  completion_timeseries       完成人数随时间的曲线
+  ui_event_frequency          行为热力图
+  active_sessions             当前有多少人在线答题
+
+判分规则：医生选的处理方式 == gold_action，或者在 gold_action_alternates
+（次优但可接受）里，就算答对。
+"""
+
 from __future__ import annotations
 
 from collections import defaultdict
@@ -29,6 +52,12 @@ ALL_ACTIONS: list[str] = [
 
 
 def _action_matches_gold(case: Case, selected: str) -> bool:
+    """★ 判分规则：这道题答对了吗？
+
+    答对 = 选的正好是标准答案，或者选的在「次优可接受」列表里。
+    比如一道该「弃用并重写」的题，医生选了「上报」也算合理，不算错。
+    每道题的 goldActionAlternates 至少有一个，在 cases.json 里定义。
+    """
     alts = case.gold_action_alternates or []
     return selected == case.gold_action or selected in alts
 
@@ -36,16 +65,24 @@ def _action_matches_gold(case: Case, selected: str) -> bool:
 def _dedupe_presentations_by_session_case(
     rows: list[CasePresentation],
 ) -> list[CasePresentation]:
-    """If the same case was submitted more than once (e.g. browser back), keep latest."""
+    """If the same case was submitted more than once (e.g. browser back), keep latest.
+
+    中文：同一个人的同一道题如果有多条记录，只留最新那条，避免重复计数。
+
+    ★ 这是历史遗留的防御性代码：早期 /api/case/open 有并发 bug，
+    生产库里积累了 23 组重复行。现在源头已由 session_write_lock 堵住
+    （见 db/locks.py），但老数据还在，所以这个去重必须保留。
+    """
     best: dict[tuple[str, str], CasePresentation] = {}
     for p in rows:
         if p.action is None:
-            continue
-        key = (p.session_id, p.case_id)
+            continue  # 没作答的记录不参与统计
+        key = (p.session_id, p.case_id)  # 用「谁 + 哪道题」做去重键
         other = best.get(key)
         if other is None:
             best[key] = p
             continue
+        # 同一个键出现两次 → 比较服务器收到的时间，留晚的那条
         t_new = p.action.server_received_at
         t_old = other.action.server_received_at  # type: ignore[union-attr]
         if t_new > t_old:
@@ -107,6 +144,12 @@ async def completion_stats(db: AsyncSession) -> dict[str, Any]:
 
 
 async def _formal_presentations(db: AsyncSession) -> list[CasePresentation]:
+    """取出全部「已作答的正式题」记录，供下面各个统计函数复用。
+
+    做了三层过滤：题目存在、不是练习题、已经作答。最后再去重。
+    selectinload 是一次性把关联的 case / action / session / participant
+    都查出来，避免后面循环里每条再查一次数据库（N+1 查询问题）。
+    """
     stmt = (
         select(CasePresentation)
         .options(
@@ -125,20 +168,30 @@ async def _formal_presentations(db: AsyncSession) -> list[CasePresentation]:
 
 
 async def confusion_matrix(db: AsyncSession) -> dict[str, Any]:
+    """★ 混淆矩阵：标准答案（行）vs 医生实际选择（列）。
+
+    这是论文里最核心的一张表。举例，matrix[2][0] = 5 表示：
+    有 5 次，标准答案是「弃用并重写」，但医生选了「原样发送」——
+    这就是最危险的过度信任 AI 的情况。
+
+    对角线 = 选对了；右上/左下 = 选错了，错的方向还能看出是保守还是激进。
+    """
     rows = await _formal_presentations(db)
     actions = ALL_ACTIONS
-    idx = {a: i for i, a in enumerate(actions)}
-    matrix = [[0] * len(actions) for _ in actions]
+    idx = {a: i for i, a in enumerate(actions)}  # 动作名 → 矩阵下标
+    matrix = [[0] * len(actions) for _ in actions]  # 4×4 全零方阵
     correct = 0
     total = 0
     for r in rows:
         c = r.case
-        sel = r.action.selected_action  # type: ignore[union-attr]
-        gold = c.gold_action
+        sel = r.action.selected_action  # type: ignore[union-attr]  医生选的
+        gold = c.gold_action                                        # 标准答案
         if gold not in idx or sel not in idx:
-            continue
-        matrix[idx[gold]][idx[sel]] += 1
+            continue  # 出现了枚举外的值（脏数据），跳过不统计
+        matrix[idx[gold]][idx[sel]] += 1  # 行=标准答案，列=实际选择
         total += 1
+        # 注意：准确率用的是「含次优答案」的宽松判定，
+        # 而矩阵本身记的是严格的原始分布。两者口径不同是故意的。
         if _action_matches_gold(c, sel):
             correct += 1
     return {
@@ -162,11 +215,12 @@ async def per_case_stats(db: AsyncSession) -> list[dict[str, Any]]:
         gold = c.gold_action
         alts = c.gold_action_alternates or []
 
-        match_gold = 0
-        match_alt = 0
-        unsafe_send = 0
-        error_survival = 0
-        appropriate_escalation = 0
+        # 下面这些计数器就是每道题要算的指标，含义见 results 里的键名注释。
+        match_gold = 0              # 选中标准答案的次数
+        match_alt = 0               # 选中次优答案的次数
+        unsafe_send = 0             # ★ 危险的原样发送
+        error_survival = 0          # ★ AI 的错误「存活」下来
+        appropriate_escalation = 0  # 该上报时确实上报了
         dur_sum = 0
         dur_n = 0
         ed_sum = 0
@@ -179,16 +233,27 @@ async def per_case_stats(db: AsyncSession) -> list[dict[str, Any]]:
                 match_gold += 1
             if a.selected_action in alts:
                 match_alt += 1
+
+            # ★ unsafeSendAsIs：AI 草稿里明明埋了错，医生却选了「原样发送」。
+            # 这是本研究最关键的风险指标——AI 的错误被原封不动发给了患者。
             if c.defect_present and a.send_as_is_flag:
                 unsafe_send += 1
+
+            # ★ errorSurvival：AI 有错，而医生的处理方式既不是标准答案
+            # 也不是次优答案 —— 也就是这个错误没有被恰当地拦下来。
+            # 比 unsafeSendAsIs 范围更宽（改了几个字但没改到点子上也算）。
             if (
                 c.defect_present
                 and a.selected_action != gold
                 and a.selected_action not in alts
             ):
                 error_survival += 1
+
+            # 该上报的题（比如患者描述了危急症状）里，有多少人真的上报了
             if gold == "escalate" and a.escalate_flag:
                 appropriate_escalation += 1
+
+            # 用时和编辑距离要单独计数，因为可能为空，不能直接除以 len(group)
             if p.duration_ms is not None:
                 dur_sum += p.duration_ms
                 dur_n += 1

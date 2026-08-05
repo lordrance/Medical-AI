@@ -1,5 +1,24 @@
 "use client";
 
+/**
+ * ★ 答题界面本体 —— 医生实际看到和操作的那一屏。全项目最大的文件。
+ *
+ * 练习题页和 8 道正式题页都用这一个组件，区别只在传进来的 props。
+ *
+ * 界面分两屏（靠 showQuick 切换）：
+ *   第 1 屏：患者消息 → 病历（可折叠）→ AI 草稿 → 4 个处理选项 → 编辑框
+ *   第 2 屏：为什么这么选（单选）→ 两道 1~5 分量表 → 提交
+ *
+ * ★ 这个组件同时在干一件不显眼但很重要的事：**全程记录行为数据**。
+ *   下面一大堆 useRef 就是各种计数器——展开了几次病历、敲了多少下键盘、
+ *   在草稿区停留多久、有没有切出去看别的。这些数据用来分析
+ *   「医生到底有没有认真核对 AI 的内容」，是研究的关键变量。
+ *
+ *   用 useRef 而不是 useState 是因为：这些计数器变化极其频繁，
+ *   用 useState 会导致每次滚动、每次敲键都重新渲染整个界面，手机上会卡。
+ *   useRef 改值不触发渲染，正好适合这种「只累计、不显示」的数据。
+ */
+
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
   AlertTriangle,
@@ -102,39 +121,44 @@ export function CasePage(props: CasePageProps) {
     onSubmit,
   } = props;
 
-  const chartExpandCountRef = useRef(0);
-  const draftSourceSwitchCountRef = useRef(0);
-  const chartEverViewedRef = useRef(false);
-  const lastSectionRef = useRef<"chart" | "draft" | null>(null);
-  const startedAtRef = useRef<number>(Date.now());
-  const firstClickRef = useRef<number | null>(null);
-  const panelClicksRef = useRef<Record<string, number>>({});
-  const editKeystrokesRef = useRef(0);
-  const editBoxOpenedRef = useRef(0);
+  // ===== 行为计数器（useRef：改值不触发重新渲染）=====
+  const chartExpandCountRef = useRef(0);        // 展开病历几次
+  const draftSourceSwitchCountRef = useRef(0);  // 在「病历」和「草稿」之间来回切几次
+  const chartEverViewedRef = useRef(false);     // 到底有没有看过病历（关键：没看就发送=盲信）
+  const lastSectionRef = useRef<"chart" | "draft" | null>(null);  // 上一次焦点在哪个区
+  const startedAtRef = useRef<number>(Date.now());     // 这道题从什么时候开始看
+  const firstClickRef = useRef<number | null>(null);   // 第一次点击的时刻（反应有多快）
+  const panelClicksRef = useRef<Record<string, number>>({});  // 各面板分别点了几次
+  const editKeystrokesRef = useRef(0);          // 在编辑框里敲了几下
+  const editBoxOpenedRef = useRef(0);           // 打开编辑框几次
   const checklistRef = useRef<boolean[]>([]);
   const checklistToggleRef = useRef(0); // checklist UI removed; kept for API shape
-  const blurRef = useRef(0);
-  const focusRef = useRef(0);
-  const hiddenStartRef = useRef<number | null>(null);
-  const visibilityHiddenRef = useRef(0);
-  const draftScrollRef = useRef<HTMLDivElement | null>(null);
-  const draftScrollEventsRef = useRef(0);
-  const draftMaxScrollRatioRef = useRef(0);
+                                        // 中文：V3 的核对清单已移除，这两个变量留着
+                                        // 只是为了后端接口格式不变，恒为空/0
+  const blurRef = useRef(0);            // 切出去几次（去查资料？还是分心？）
+  const focusRef = useRef(0);           // 切回来几次
+  const hiddenStartRef = useRef<number | null>(null);  // 这次切出去的起始时刻
+  const visibilityHiddenRef = useRef(0);              // 累计离开了多久
+  const draftScrollRef = useRef<HTMLDivElement | null>(null);  // 指向草稿区那个 DOM 元素
+  const draftScrollEventsRef = useRef(0);       // 草稿区滚动了几次
+  const draftMaxScrollRatioRef = useRef(0);     // ★ 最多滚到草稿的百分之几（0~1）
+                                                // 只滚到 0.2 说明后面 80% 根本没看
   const draftFocusStartedAtRef = useRef<number | null>(null);
-  const draftDwellMsRef = useRef(0);
+  const draftDwellMsRef = useRef(0);            // 在草稿区停留的总时长
 
-  const [selected, setSelected] = useState<SelectedAction | null>(null);
-  const [editorText, setEditorText] = useState("");
-  const [escalateSubtype, setEscalateSubtype] = useState("");
-  const [escalateReason, setEscalateReason] = useState("");
-  const [actionReasonCode, setActionReasonCode] = useState<ActionReasonCode | "">("");
-  const [actionReasonText, setActionReasonText] = useState("");
-  const [showQuick, setShowQuick] = useState(false);
-  const [quick, setQuick] = useState<Record<string, number>>({});
-  const [submitting, setSubmitting] = useState(false);
-  const [validationMsg, setValidationMsg] = useState<string | null>(null);
-  const [chartExpanded, setChartExpanded] = useState(false);
-  const [sendAsIsAck, setSendAsIsAck] = useState(false);
+  // ===== 界面状态（useState：改值会重新渲染）=====
+  const [selected, setSelected] = useState<SelectedAction | null>(null);  // 选了哪个处理方式
+  const [editorText, setEditorText] = useState("");            // 编辑框里的文本
+  const [escalateSubtype, setEscalateSubtype] = useState("");  // 上报的子类型
+  const [escalateReason, setEscalateReason] = useState("");    // 上报的理由
+  const [actionReasonCode, setActionReasonCode] = useState<ActionReasonCode | "">("");  // 为什么这么选
+  const [actionReasonText, setActionReasonText] = useState(""); // 选「其他」时的补充说明
+  const [showQuick, setShowQuick] = useState(false);  // false=第1屏(答题) true=第2屏(理由+量表)
+  const [quick, setQuick] = useState<Record<string, number>>({});  // 两道小量表的分数
+  const [submitting, setSubmitting] = useState(false);            // 正在提交（禁用按钮防重复点）
+  const [validationMsg, setValidationMsg] = useState<string | null>(null);  // 红色提示文字
+  const [chartExpanded, setChartExpanded] = useState(false);      // 病历是否展开
+  const [sendAsIsAck, setSendAsIsAck] = useState(false);          // 选「原样发送」时的二次确认勾选
 
   function noteSectionFocus(section: "chart" | "draft") {
     const prev = lastSectionRef.current;
@@ -163,6 +187,10 @@ export function CasePage(props: CasePageProps) {
     });
   }
   // reset on case change
+  //
+  // ★ 换题时把所有状态和计数器清零。这一步至关重要：
+  // 8 道题共用同一个组件实例，不清零的话第 2 题会带着第 1 题的选择、
+  // 文本和计数进来，数据全乱。依赖项是 [casePayload.id]，所以只在换题时跑。
   useEffect(() => {
     startedAtRef.current = Date.now();
     firstClickRef.current = null;
@@ -198,6 +226,10 @@ export function CasePage(props: CasePageProps) {
   }, [casePayload.id]);
 
   // page blur / focus
+  //
+  // 中文：监听「页面被切走 / 切回来」。医生切出去可能是查资料（认真），
+  // 也可能是刷微信（分心），这个数据配合用时一起看才有意义。
+  // 返回的那个函数是清理器：组件卸载时要把监听器摘掉，否则会内存泄漏。
   useEffect(() => {
     function vis() {
       if (document.visibilityState === "hidden") {
@@ -224,17 +256,25 @@ export function CasePage(props: CasePageProps) {
     panelClicksRef.current[p] = (panelClicksRef.current[p] ?? 0) + 1;
   }
 
+  /** 医生点了某个处理选项。★ 不同选项决定编辑框里预填什么。 */
   function chooseAction(a: SelectedAction) {
     recordFirstClick();
     bumpPanel("action_panel");
     setSelected(a);
     setValidationMsg(null);
+    // 改选了别的就把「原样发送」的二次确认取消掉，防止残留一个已勾选的状态
     if (a !== "send_as_is") setSendAsIsAck(false);
     onLogEvent?.("action_button_selected", { caseId: casePayload.id, action: a });
+
+    // ★ 这几行是实验设计的关键：
     if (a === "edit_then_send") setEditorText(casePayload.aiDraft);
+      // 「修改后发送」→ 预填 AI 原文，医生在此基础上改（编辑距离才有意义）
     else if (a === "discard_and_rewrite") setEditorText("");
+      // 「弃用并重写」→ 清空，从零写（编辑距离会很大）
     else if (a === "send_as_is") setEditorText(casePayload.aiDraft);
+      // 「原样发送」→ 就是 AI 原文，编辑距离 = 0
     else if (a === "escalate") {
+      // 「上报」→ 不需要写回复，改成填上报理由
       setEditorText("");
       setEscalateReason("");
     }
@@ -251,6 +291,11 @@ export function CasePage(props: CasePageProps) {
     return true;
   }, [selected, editorVisible, editorText, escalateReason, sendAsIsAck]);
 
+  /** 点「保存并继续」时的校验。通过了才进第 2 屏。
+   *
+   * 校验失败时显示具体缺什么，而不是把按钮灰掉——
+   * 灰按钮医生不知道差在哪，会卡住。
+   */
   function tryContinue() {
     if (!selected) {
       setValidationMsg(zh.caseUI.pickAction);
@@ -279,12 +324,18 @@ export function CasePage(props: CasePageProps) {
     return likertOk;
   }, [quick, actionReasonCode, actionReasonText]);
 
+  /** ★ 提交这道题。把界面状态和全部行为计数打包成一个请求发给后端。 */
   async function submitCase() {
     if (!allQuickAnswered || !selected) return;
-    setSubmitting(true);
+    setSubmitting(true);  // 按钮变灰转圈，防止医生连点两次
     setValidationMsg(null);
     const endedAt = Date.now();
-    const durationMs = endedAt - startedAtRef.current;
+    const durationMs = endedAt - startedAtRef.current;  // 这道题总共花了多久
+
+    // 最终回复文本按处理方式决定：
+    //   原样发送 → 就是 AI 原文（编辑距离 = 0）
+    //   上报     → 占位符，因为医生没写回复，写的是上报理由
+    //   改/重写  → 编辑框里的内容
     const finalReplyText =
       selected === "send_as_is"
         ? casePayload.aiDraft
@@ -301,7 +352,10 @@ export function CasePage(props: CasePageProps) {
       guardrailEverExpandedToView: false,
       sendAsIsAcknowledged: selected === "send_as_is" ? sendAsIsAck : false,
     };
+    // 把所有计数器打包。后端会把它翻译成问卷 PDF 规定的 log_* 变量。
     const clientStats: ClientStats = {
+      // 从看到题到第一次点击隔了多久。null 表示压根没点过任何东西
+      // （直接就提交了，说明看都没看）。
       timeToFirstClickMs:
         firstClickRef.current != null
           ? firstClickRef.current - startedAtRef.current

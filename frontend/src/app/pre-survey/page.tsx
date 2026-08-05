@@ -1,5 +1,15 @@
 "use client";
 
+/**
+ * 前测问卷 —— 答题前采集医生的基本信息（科室、职级、年资等）。
+ *
+ * 题目内容不在这个文件里，在 lib/forms/preSurveyConfig.ts。
+ * 这里只负责「按配置渲染表单 + 收集答案 + 提交」，改题目去改那个配置文件。
+ *
+ * ★ 这里有防丢失机制：每改一个答案就存进 localStorage，
+ *   手机刷新/切后台回来能自动恢复（见 lib/persist.ts）。
+ */
+
 import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 import { Loader2 } from "lucide-react";
@@ -21,13 +31,16 @@ export default function PreSurveyPage() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  // 草稿的存储键。带上 sessionId，不同人/不同次的草稿互不干扰。
   const draftKey = session ? `pre:${session.sessionId}` : null;
 
+  // 守卫：没有会话就回到入口（直接输网址进来的情况）
   useEffect(() => {
     if (!session) router.replace("/consent");
   }, [session, router]);
 
   // Restore any in-progress answers after a mobile WebView reload.
+  // 中文：页面加载时把上次没填完的答案读回来。
   useEffect(() => {
     if (!draftKey) return;
     const saved = loadDraft<Record<string, Answer>>(draftKey);
@@ -35,6 +48,8 @@ export default function PreSurveyPage() {
   }, [draftKey]);
 
   // Persist on every change so a reload never loses typed answers.
+  // 中文：每改一个答案就立刻存一次。依赖项里有 answers，
+  // 所以 answers 一变这个 effect 就重跑。
   useEffect(() => {
     if (draftKey && Object.keys(answers).length > 0) saveDraft(draftKey, answers);
   }, [draftKey, answers]);

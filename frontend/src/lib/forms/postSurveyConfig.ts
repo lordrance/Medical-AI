@@ -1,16 +1,40 @@
+/**
+ * ★ 后测问卷的全部题目内容。要改题、加题、改文案，就改这个文件。
+ *
+ * 设计成「配置驱动」：页面代码（app/post-survey/page.tsx）只负责按这份
+ * 配置渲染，不写死任何一道题。所以加一道题不用碰任何逻辑代码。
+ *
+ * ★ 但改题目要同步三个地方，缺一不可：
+ *   1. 这个文件                                  —— 前端显示什么
+ *   2. backend/app/schemas/post_survey_payload.py —— 后端校验哪些字段
+ *   3. backend/data/post_survey.json              —— 题库存档
+ * 只改这里的话，医生能填，但提交时后端会报 422「有题目不合规」。
+ *
+ * ★ id 命名不要随便改：它直接变成数据库 JSON 里的键名和导出 CSV 的列名，
+ * 而且和问卷 PDF 的编码表一一对应。改了就对不上研究工具了。
+ */
+
+/** 一道题。 */
 export interface PostSurveyItem {
   id: string;
+  /** 题型。不写默认是 likert（1~5 分量表）。
+   *  text   = 开放题（多行文本框）
+   *  phone4 = 手机尾号 4 位（数字输入框） */
   type?: "likert" | "text" | "phone4";
-  text: string;
+  text: string;  // 题干
 }
+
+/** 一组题（问卷里的一个小节，如「A. AI 与数字效能」）。 */
 export interface PostSurveyBlock {
   id: string;
   title: string;
   items: PostSurveyItem[];
 }
+
 export interface PostSurveyConfig {
   title: string;
   description: string;
+  /** 量表刻度，全卷统一 1~5 分。 */
   scale: { min: number; max: number; minLabel: string; maxLabel: string };
   blocks: PostSurveyBlock[];
 }
@@ -185,6 +209,9 @@ export const postSurveyConfig: PostSurveyConfig = {
           "text": "我感觉 AI 生成内容有时会基于有限信息，给出超出证据支持范围的临床判断。"
         },
         {
+          // ★ 注意力检查题。混在量表中间，答案必须是 4。
+          // 后端 schemas/post_survey_payload.py 强制校验：不填 4 直接返回 422。
+          // 用来筛掉「一路点到底」的敷衍作答者——这是问卷研究的标准做法。
           "id": "attn_post_1",
           "text": "为确认您在认真作答，请在本题选择「4」。"
         },
@@ -276,6 +303,9 @@ export const postSurveyConfig: PostSurveyConfig = {
           "text": "L3 AI 赋能下的医疗系统变革\n\n从宏观来看，随着 AI 工具在医疗机构中被大规模采用和深度整合，您认为医疗系统会在哪些层面发生改变——例如医院的组织与管理方式、医生的职业角色与日常职责、以及医患之间的沟通与信任关系？这些变化中，您最期待什么，最担心什么？\n\n提示：您可以从组织管理、分级诊疗、资源分配、角色重塑、核心价值、医患沟通、审核机制、数据安全、患者隐私、错误应对等方面考虑。"
         },
         {
+          // 全卷最后一题。★ 这是整份问卷里唯一一项可能关联到真实身份的信息，
+          // 仅用于发报酬对账，存在 post_surveys 的 JSON 里而不是被试档案上。
+          // 后端强制校验必须是 4 位数字。
           "id": "post_phone_last4",
           "type": "phone4",
           "text": "请填写您的手机尾号后 4 位，用于匹配作答发放报酬。"
