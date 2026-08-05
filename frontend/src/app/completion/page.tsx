@@ -37,10 +37,21 @@ export default function CompletionPage() {
           <code className="mt-1.5 inline-block rounded-md border border-border bg-muted px-4 py-2 font-mono text-lg">
             {code}
           </code>
+          <p className="mt-2 text-xs text-muted-foreground">
+            {zh.completion.codeHint}
+          </p>
         </div>
       )}
       <div className="mt-8">
-        <button className="btn-ghost text-xs" onClick={reset}>
+        <button
+          className="btn-ghost text-xs"
+          // The completion code lives only in this browser, and it is what the
+          // participant hands back to claim payment. Resetting wipes it with no
+          // way to recover, so never do it on a stray tap.
+          onClick={() => {
+            if (window.confirm(zh.completion.resetConfirm)) reset();
+          }}
+        >
           {zh.completion.reset}
         </button>
       </div>

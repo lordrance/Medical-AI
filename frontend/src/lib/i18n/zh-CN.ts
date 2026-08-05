@@ -130,7 +130,10 @@ export const zh = {
       `正式案例共 ${total} 题，答对 ${correct} 题，准确率 ${pct}。`,
     performanceHint:
       "「答对」指所选处理方式与研究团队预设的参考标准一致；练习案例不计入。",
+    codeHint: "请先截图或抄写保存完成码，再关闭页面。",
     reset: "重置（仅调试）",
+    resetConfirm:
+      "重置后本次的完成码将无法找回，确定要清空吗？如果您还没有保存完成码，请点「取消」。",
   },
   admin: {
     title: "管理员后台",
