@@ -24,6 +24,7 @@ from __future__ import annotations
 
 import csv
 import io
+import logging
 import os
 import re
 import zipfile
@@ -47,6 +48,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.api.deps import db_session
 from app.core.security import require_admin
 from app.db.models import Session, VoiceRecording
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(tags=["voice-recording"])
 
@@ -118,9 +121,20 @@ async def submit_recording(
     ts = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%S")
     ext = _ext_for_mime(mime)
     rel_dir = _VOICE_DIR / safe_session
-    rel_dir.mkdir(parents=True, exist_ok=True)
     rel_path = rel_dir / f"{safe_question}_{ts}.{ext}"
-    rel_path.write_bytes(blob)
+    try:
+        rel_dir.mkdir(parents=True, exist_ok=True)
+        rel_path.write_bytes(blob)
+    except OSError as e:
+        # Storage problem (bind-mount owned by root so the uid-1001 app user
+        # can't write, disk full, ...). This is an optional feature, so say so
+        # plainly instead of letting it surface as a bare 500 — the recorder
+        # button shows the status text verbatim and "HTTP 500" alarms
+        # participants into thinking they broke the study.
+        logger.error("voice recording write failed at %s: %r", rel_path, e)
+        raise HTTPException(
+            503, "录音暂时无法保存，请继续用文字作答；这不影响您提交问卷。"
+        ) from e
 
     rec = VoiceRecording(
         session_id=sessionId,

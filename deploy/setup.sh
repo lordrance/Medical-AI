@@ -126,6 +126,19 @@ EOF
 chmod 600 .env
 ok "已写入 .env（权限 600，仅本机可读）"
 
+# --- 5b. 录音存储目录（权限必须对，否则语音上传 500）------------------
+# docker-compose.prod.yml 把 ./data/voice_recordings 挂进后端容器。如果这个
+# 目录不存在，Docker 会用 root:root 建出来；而后端容器里跑的是 uid 1001 的
+# app 用户（见 backend/Dockerfile），写不进去 → 医生点「开始录音」后上传报
+# 500。上海服务器就是这么坏的（tarball 迁移时目录被 root 重建）。
+# 只 chown 属主 uid 即可，不依赖容器里的 gid。
+mkdir -p data/voice_recordings
+if chown -R 1001 data/voice_recordings 2>/dev/null || sudo chown -R 1001 data/voice_recordings; then
+  ok "录音目录 data/voice_recordings 已就绪（属主 uid 1001，与容器内 app 用户一致）"
+else
+  warn "无法 chown data/voice_recordings；语音上传可能会失败。请手动执行： sudo chown -R 1001 data/voice_recordings"
+fi
+
 # --- 6. 启动 docker compose -------------------------------------------
 echo
 log "开始 build + 启动 4 个容器：db / backend / frontend / caddy"
