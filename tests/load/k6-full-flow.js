@@ -18,26 +18,33 @@ import { check, sleep, fail } from "k6";
 import { Counter, Rate } from "k6/metrics";
 
 const BASE = __ENV.BASE || "http://localhost:8001";
-const DOUBLE_SUBMIT_RATE = 0.2;
+const DOUBLE_SUBMIT_RATE = Number(__ENV.DOUBLE_SUBMIT_RATE ?? 0.2);
+// VERIFY=1 runs a handful of full flows instead of the 100-VU ramp — used to
+// confirm a deploy on the real server without writing 2000 fake participants.
+const VERIFY = __ENV.VERIFY === "1";
 
 const serverErrors = new Counter("server_errors_5xx");
 const dupMismatch = new Counter("duplicate_submit_mismatch");
 const flowCompleted = new Rate("flow_completed");
 
-export const options = {
-  stages: [
-    { duration: "30s", target: 100 }, // everyone arrives
-    { duration: "2m", target: 100 },  // 100 concurrently working
-    { duration: "20s", target: 0 },
-  ],
-  thresholds: {
-    http_req_failed: ["rate<0.01"],
-    http_req_duration: ["p(95)<2000"],
-    server_errors_5xx: ["count==0"],
-    duplicate_submit_mismatch: ["count==0"],
-    flow_completed: ["rate>0.99"],
-  },
+const thresholds = {
+  http_req_failed: ["rate<0.01"],
+  http_req_duration: [`p(95)<${VERIFY ? 5000 : 2000}`], // cross-country adds latency
+  server_errors_5xx: ["count==0"],
+  duplicate_submit_mismatch: ["count==0"],
+  flow_completed: ["rate>0.99"],
 };
+
+export const options = VERIFY
+  ? { vus: 3, iterations: 3, thresholds }
+  : {
+      stages: [
+        { duration: "30s", target: 100 }, // everyone arrives
+        { duration: "2m", target: 100 },  // 100 concurrently working
+        { duration: "20s", target: 0 },
+      ],
+      thresholds,
+    };
 
 const headers = { "Content-Type": "application/json" };
 
