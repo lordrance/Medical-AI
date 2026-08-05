@@ -1,6 +1,19 @@
 """Seed cases & order templates into the configured database.
 
 Run: `python -m app.scripts.seed`.
+
+★ 中文：把题库 JSON 灌进数据库。
+
+什么时候会跑：
+  - 容器每次启动时自动跑一遍（docker/entrypoint.sh 里，SEED_ON_START=true）
+  - 你改了 cases.json 之后手动跑
+
+★ 「幂等」：重复跑任意多次结果都一样。已存在的题目更新内容，
+不存在的才新建。所以容器天天重启也不会产生重复数据。
+
+★ 注意：改了题目内容并重新 seed 之后，**必须重启后端**。
+因为题目内容被缓存在每个 worker 的内存里（见 core/cache.py），
+不重启的话老 worker 还在发旧题目。
 """
 
 from __future__ import annotations
@@ -23,6 +36,11 @@ async def ensure_schema() -> None:
 
 
 async def upsert_cases() -> int:
+    """把 cases.json 里的题目写进数据库。upsert = update + insert。
+
+    ★ 这里做的是「JSON 的 camelCase → 数据库的 snake_case」翻译。
+    比如 JSON 里写 isPractice，数据库列叫 is_practice。
+    """
     factory = get_session_factory()
     cases = load_cases()
     async with factory() as session:
@@ -46,8 +64,12 @@ async def upsert_cases() -> int:
                 language="zh-CN",
             )
             if existing is None:
-                session.add(Case(**data))
+                session.add(Case(**data))   # 库里没有 → 新建
             else:
+                # 库里已有 → 逐字段覆盖。
+                # ★ 只更新不删除：如果 cases.json 里删掉了一道题，
+                # 数据库里那道题**不会**被删。这是故意的——已经有医生
+                # 答过那道题了，删了会留下一堆指向空题目的孤儿数据。
                 for k, v in data.items():
                     setattr(existing, k, v)
         await session.commit()
@@ -55,6 +77,7 @@ async def upsert_cases() -> int:
 
 
 async def upsert_order_templates() -> int:
+    """把 4 套题目顺序写进数据库。逻辑同上。"""
     factory = get_session_factory()
     templates = load_order_templates()["templates"]
     async with factory() as session:

@@ -2,6 +2,21 @@
 
 Run: `python -m app.scripts.validate_data`.
 Exits with non-zero code if any error is found.
+
+★ 中文：题库的体检工具。**改完 cases.json 一定要跑这个再提交。**
+
+    cd backend
+    PYTHONIOENCODING=utf-8 python -m app.scripts.validate_data
+
+它检查的是那些「不会报错但会毁掉研究」的问题，比如：
+  - 正式题不是 8 道
+  - goldAction 写了个四种动作之外的值
+  - 某道题没写次优答案（判分会过于严苛）
+  - ★ 顺序模板里，唯一那道「AI 没出错」的题排到了后半段
+    （它必须在前半段，否则医生会先形成「AI 总是有错」的预期，
+     整个实验的基线就偏了）
+
+有任何错误就返回非零退出码，CI 会因此失败。
 """
 
 from __future__ import annotations
@@ -20,21 +35,28 @@ from app.scripts.data_loader import (
 
 
 def main() -> int:
+    # errors = 必须修的（会让脚本返回非零退出码）
+    # warnings = 提醒一下，不阻塞
     errors: list[str] = []
     warnings: list[str] = []
 
+    # ---- 第 1 关：每道题的字段格式对不对 ----
     cases_raw = load_cases()
     cases: list[CaseRaw] = []
     for raw in cases_raw:
         try:
             cases.append(CaseRaw.model_validate(raw))
         except Exception as e:
+            # 收集错误而不是直接抛出，这样一次能报出所有问题，
+            # 不用改一个跑一次。
             errors.append(f"case {raw.get('id')}: schema invalid -> {e}")
 
+    # ---- 第 2 关：题目数量 ----
     formal = [c for c in cases if not c.isPractice]
     if len(formal) != 8:
         errors.append(f"正式 case 数量应为 8，实际 {len(formal)}")
 
+    # ---- 第 3 关：每道题的内容完整性 ----
     allowed_actions = {a.value for a in SelectedAction}
     for c in cases:
         if c.goldAction not in allowed_actions:
@@ -46,9 +68,11 @@ def main() -> int:
         if len(c.guardrail.checklist) < 3:
             errors.append(f"case {c.id} guardrail.checklist 应至少 3 条")
 
+    # ---- 第 4 关：题目顺序模板的约束 ----
+    # 先把题目按属性分组，下面检查顺序模板时要用
     formal_ids = {c.id for c in formal}
-    defective_ids = {c.id for c in formal if c.defectPresent}
-    non_defective_ids = formal_ids - defective_ids
+    defective_ids = {c.id for c in formal if c.defectPresent}      # AI 有错的题（7 道）
+    non_defective_ids = formal_ids - defective_ids                 # AI 没错的题（1 道）
     high_risk_ids = {c.id for c in formal if c.riskLevel == "high"}
     low_risk_ids = {c.id for c in formal if c.riskLevel == "low"}
 

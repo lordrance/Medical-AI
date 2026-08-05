@@ -1,3 +1,13 @@
+/**
+ * 全站的外层框架。所有页面都被套在这里面渲染。
+ *
+ * 文件名 layout.tsx 且放在 app/ 根目录 —— Next.js 的约定。
+ * 提供的是每一页都有的部分：<html> 标签、页头标题、页脚（含 ICP 备案号）。
+ *
+ * ★ 页脚的 ICP 备案号是法律要求：在中国大陆运营的网站必须在页面上
+ * 展示备案号并链接到工信部网站。删掉可能导致备案被撤销。
+ */
+
 import type { Metadata } from "next";
 import "@/styles/globals.css";
 import { zh } from "@/lib/i18n/zh-CN";

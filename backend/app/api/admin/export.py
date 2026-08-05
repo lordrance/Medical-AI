@@ -1,3 +1,15 @@
+"""★ 数据导出 —— 你写论文时取数据的地方。
+
+三种导出方式，从粗到细：
+
+  GET /api/admin/export/full-database  整库 SQL 备份（最完整，能原样还原）
+  GET /api/admin/export/bundle         ZIP 打包多张表的 CSV（★ 最常用）
+  GET /api/admin/export?table=xxx      单张表，CSV 或 JSON
+
+★ 安全：三个接口都要管理员 token。后台前端用 downloadWithToken()
+下载（fetch + Blob），保证 token 只走请求头、不进网址。
+"""
+
 from __future__ import annotations
 
 import io
@@ -71,13 +83,24 @@ EXPORT_DATA_TABLES: tuple[str, ...] = (
 
 @router.get("/export/full-database")
 async def export_full_database(request: Request) -> Response:
-    """Download entire DB as SQL (SQLite: iterdump; Postgres: pg_dump). Admin only."""
+    """Download entire DB as SQL (SQLite: iterdump; Postgres: pg_dump). Admin only.
+
+    中文：整库导出。生产环境走 pg_dump，生成的文件能原样还原一个数据库。
+    这是最保险的备份方式（服务器上每天也会自动生成一份，见 docker-compose
+    里的 backup 容器）。
+    """
     require_admin(request)
     try:
         # pg_dump / iterdump is a blocking subprocess+IO. Run it in a thread so
         # it does not freeze this worker's event loop (which would make every
         # participant routed to this worker hang, and — past gunicorn's timeout
         # — get the worker SIGKILLed mid-request).
+        #
+        # ★ 中文（这是一个修过的真 bug）：pg_dump 是阻塞式的外部进程调用。
+        # 直接在 async 函数里调，会把这个 worker 的事件循环整个卡住——
+        # 期间所有被分到这个 worker 的医生都会卡死；超过 gunicorn 的
+        # 120 秒超时后，worker 还会被强杀，他们的请求直接失败。
+        # run_in_threadpool 把它挪到独立线程里跑，事件循环继续服务别人。
         content, filename, media_type = await run_in_threadpool(
             full_database_dump_bytes
         )
@@ -101,10 +124,16 @@ async def export_bundle(
     ),
     db: AsyncSession = Depends(db_session),
 ) -> Response:
-    """ZIP of CSV files for selected tables (admin only)."""
+    """ZIP of CSV files for selected tables (admin only).
+
+    ★ 中文：最常用的导出方式。一个 ZIP 里每张表一个 CSV，
+    解压后直接用 Excel / SPSS / R 打开。不传 tables 参数就导全部。
+    """
     require_admin(request)
     if tables:
         names = [t.strip() for t in tables.split(",") if t.strip()]
+        # ★ 白名单校验：只允许导出 EXPORT_DATA_TABLES 里列出的表名。
+        # 不校验的话，表名会被拼进 SQL，等于开了个注入口子。
         invalid = [t for t in names if t not in EXPORT_DATA_TABLES]
         if invalid:
             raise HTTPException(
@@ -115,17 +144,21 @@ async def export_bundle(
     else:
         chosen = list(EXPORT_DATA_TABLES)
 
+    # BytesIO = 内存里的假文件。ZIP 直接在内存里打包，不落磁盘，
+    # 省得还要考虑临时文件清理。
     buf = io.BytesIO()
     with zipfile.ZipFile(buf, mode="w", compression=zipfile.ZIP_DEFLATED) as zf:
         for name in chosen:
             rows = await _load_table(name, db)
             if name == "summary":
+                # summary 是嵌套 JSON，要先摊平才能塞进 CSV
                 flat = flatten_summary(rows)  # type: ignore[arg-type]
                 csv_text = to_csv(flat)
             else:
                 csv_text = to_csv(rows)  # type: ignore[arg-type]
+            # ★ 必须用 utf-8 编码，否则中文答案在 CSV 里全是乱码
             zf.writestr(f"{name}.csv", csv_text.encode("utf-8"))
-    buf.seek(0)
+    buf.seek(0)  # 把「读写指针」拨回开头，否则读出来是空的
     payload = buf.getvalue()
     return Response(
         content=payload,

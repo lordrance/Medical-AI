@@ -1,4 +1,16 @@
 // Chinese (Simplified) UI dictionary. Keep UI text out of components.
+/**
+ * ★ 全站中文文案集中在这里。改字改这个文件，不用翻代码。
+ *
+ * 组织方式按页面/功能分组：consent（知情同意页）、caseUI（答题界面）、
+ * postSurvey、completion、errors、admin……
+ *
+ * 有些文案带函数，如 progress(1, 8) → "第 1 / 8 题"，
+ * 这样可变部分也集中在这里，不会散落在各个组件里。
+ *
+ * ★ 注意：问卷的**题目内容**不在这里，在 lib/forms/*Config.ts。
+ * 这里只放界面文案（按钮、提示、错误信息）。
+ */
 export const zh = {
   nav: {
     back: "返回",

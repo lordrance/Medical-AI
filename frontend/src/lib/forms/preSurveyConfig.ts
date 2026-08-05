@@ -1,22 +1,31 @@
 // Survey schema lives in the backend (`backend/data/pre_survey.json`).
 // We keep a hand-mirror here for the form UI; identical id values must match
 // what the backend's /api/pre-survey expects.
+//
+// ★ 中文：前测问卷的题目内容。改题目改这里。
+//
+// 和后测的区别：前测的答案会存进 participants 表的**独立列**
+//（pre_specialty、pre_training_level…），因为这几项是分析时最常用来
+// 分组的变量，做成列比塞进 JSON 更好查。
+// 所以这里的 id **必须**和 backend/app/api/survey.py 里 _str(a, "xxx")
+// 取的键名完全一致，改了名后端就读不到，那一列会变成空。
 
+/** 一道前测题。前测的题型比后测多，因为要采集科室、年资这类结构化信息。 */
 export interface SurveyItem {
   id: string;
-  type: "select" | "number" | "multi_select" | "likert";
+  type: "select" | "number" | "multi_select" | "likert";  // 下拉 / 数字 / 多选 / 量表
   label: string;
-  required?: boolean;
-  options?: string[];
-  min?: number;
+  required?: boolean;   // 必答题会显示红色星号，且不填就不能提交
+  options?: string[];   // select / multi_select 的选项
+  min?: number;         // number 类型的取值范围
   max?: number;
-  scale?: { min: number; max: number; minLabel: string; maxLabel: string };
+  scale?: { min: number; max: number; minLabel: string; maxLabel: string };  // likert 的刻度
 }
 
 export interface SurveyConfig {
   title: string;
   description: string;
-  items: SurveyItem[];
+  items: SurveyItem[];  // 前测题少，不像后测那样还要分组
 }
 
 export const preSurveyConfig: SurveyConfig = {

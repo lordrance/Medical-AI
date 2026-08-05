@@ -1,5 +1,16 @@
 "use client";
 
+/**
+ * 练习题页面。正式答题前先做一道，让医生熟悉界面和操作。
+ *
+ * 和正式题页（case/[order]/page.tsx）几乎一样，区别只有三点：
+ *   1. 题目固定是 session.practiceCaseId，不看网址参数
+ *   2. orderIndex 传 -1（数据库里靠这个区分练习和正式）
+ *   3. 顶部多一条「这是练习题」的提示条（practiceBanner）
+ *
+ * ★ 练习题的作答**不计入研究结果**（analysis.py 里按 is_practice 过滤掉）。
+ */
+
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import { CasePage } from "@/components/case/CasePage";

@@ -1,5 +1,23 @@
 "use client";
 
+/**
+ * ★ 管理员后台 —— 只有你用，医生看不到。
+ *
+ * 访问 https://medraftlab.com/admin，输入 ADMIN_TOKEN 登录。
+ *
+ * 功能：
+ *   - 实时看板（完成人数、混淆矩阵、行为分布、谁在线答题）
+ *   - 导出数据（CSV / ZIP / 整库备份）
+ *   - 用 AI 生成研究总结（需要在服务器上配 DeepSeek key）
+ *
+ * ★ Token 安全（这是修过的一个真问题）：
+ *   1. token 存在 sessionStorage（键 medai_admin_token），关掉标签页就没了，
+ *      不像 localStorage 会一直留着
+ *   2. **绝不把 token 放进网址**——会泄露到浏览器历史、Referer 头、截图里
+ *   3. 下载文件走 downloadWithToken()（fetch + Blob + 合成 <a download>），
+ *      这样 token 只出现在请求头里
+ */
+
 import { Suspense, useCallback, useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import {
