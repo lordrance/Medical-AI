@@ -1,8 +1,23 @@
-"""读取 backend/data/ 下的题库 JSON 文件。
+"""
+================================================================================
+文件作用：读取 backend/data/ 下的题库 JSON 文件
+================================================================================
 
-★ 所有研究素材（题目、问卷题、顺序模板）都以 JSON 文件的形式放在
-backend/data/ 里，而不是写死在代码里。好处是改题目不用改代码，
-而且这些文件在 git 里有完整的修改历史，改过什么一目了然。
+★ 所有研究素材（题目内容、问卷题目、题目顺序）都以 JSON 文件的形式放在
+  backend/data/ 里，而不是写死在代码里。
+
+  好处有两个：
+    1. 改题目不用改代码，也不用懂 Python
+    2. 这些文件在 git 里有完整的修改历史——"这道题什么时候改的、
+       改之前是什么样"一目了然，这对研究的可追溯性很重要
+
+--------------------------------------------------------------------------------
+本文件的代码块（从上到下）：
+--------------------------------------------------------------------------------
+  第 1 块  DATA_DIR                  题库文件夹的位置
+  第 2 块  read_json()               读一个 JSON 文件
+  第 3 块  load_cases() 等 5 个函数  各读各的文件
+================================================================================
 """
 
 from __future__ import annotations
@@ -11,19 +26,25 @@ import json
 from pathlib import Path
 from typing import Any
 
-# 从本文件位置往上数两级到 backend/，再进 data/。
-# 用相对定位而不是写死绝对路径，这样本机、Docker 容器里都能跑。
-#   __file__ = backend/app/scripts/data_loader.py
-#   parents[0]=scripts  parents[1]=app  parents[2]=backend
+# ── 第 1 块：题库文件夹位置 ──────────────────────────────────────────────
+# 从本文件的位置往上数两级到 backend/，再进 data/。
+#   __file__   = backend/app/scripts/data_loader.py
+#   parents[0] = scripts
+#   parents[1] = app
+#   parents[2] = backend      ← 要的是这个
+# ★ 用相对定位而不是写死绝对路径：本机是 E:\medical\...，
+#   Docker 容器里是 /app/...，写死就只能在一个地方跑。
 DATA_DIR = Path(__file__).resolve().parents[2] / "data"
 
 
+# ── 第 2 块：读一个 JSON 文件 ────────────────────────────────────────────
 def read_json(filename: str) -> Any:
     """读一个 JSON 文件。★ 必须指定 utf-8，否则 Windows 上读中文会乱码。"""
     path = DATA_DIR / filename
     return json.loads(path.read_text(encoding="utf-8"))
 
 
+# ── 第 3 块：五个具体的读取函数 ──────────────────────────────────────────
 def load_cases() -> list[dict]:
     """★ 8 道正式题 + 1 道练习题的全部内容。改题目就是改这个文件。"""
     return read_json("cases.json")

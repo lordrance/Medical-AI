@@ -1,6 +1,19 @@
-"""Demo: seed DB, record ui_events + action, verify exports.
+"""
+================================================================================
+文件作用：一次性的演示脚本 —— 比 full_export_scope_demo 更简版
+================================================================================
+
+Demo: seed DB, record ui_events + action, verify exports.
 
 Run: cd backend && .venv/bin/python -m app.scripts.showcase_export_demo
+
+★ 和同目录下的 full_export_scope_demo.py 是一类东西：都是"手动跑一下
+  看看"的演示脚本，不是生产代码也不是自动化测试。
+
+  这个更简单，只走一小段流程（建库 → 记几条埋点和一次作答 → 导出看看），
+  适合快速确认导出功能还活着。要看全部表的完整覆盖，用那个 full_ 版本。
+
+★ 同样安全：数据库建在系统临时目录里，不碰任何真实数据。
 """
 
 from __future__ import annotations
