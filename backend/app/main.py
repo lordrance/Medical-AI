@@ -1,12 +1,29 @@
-"""★ 后端的总装配文件 —— 整个 FastAPI 应用在这里拼起来。
+"""
+================================================================================
+文件作用：★ 后端的总装配 —— 整个 FastAPI 应用在这里拼起来
+================================================================================
 
-启动时做四件事：
-  1. 装中间件（给每个请求发一个追踪 ID）
-  2. 装异常处理器（把各种错误变成统一格式的 JSON）
-  3. 装 CORS（允许前端跨域访问）
-  4. 把所有接口路由注册进来
+gunicorn 启动时加载的就是这个文件（命令行里那句 "app.main:app"）。
+它自己不处理任何业务，只负责把各个零件装到一起：
 
-gunicorn 启动时加载的就是这个文件里最后那行 `app = create_app()`。
+  1. 装中间件      给每个请求发一个追踪编号
+  2. 装异常处理器  把各种错误统一成一种 JSON 格式
+  3. 装 CORS       允许前端跨域访问
+  4. 注册路由      把所有接口挂上去
+
+--------------------------------------------------------------------------------
+本文件的代码块（从上到下）：
+--------------------------------------------------------------------------------
+  第 1 块  _logger / _REQUEST_ID_RE  日志器和一个正则
+  第 2 块  _setup_logging()          配置日志格式
+  第 3 块  lifespan()                启动和关闭时各做一件事
+  第 4 块  create_app()              ★ 装配函数，下面 5 小块都在它里面
+      4a  请求编号中间件
+      4b  三个异常处理器
+      4c  CORS
+      4d  注册全部路由
+  第 5 块  app = create_app()        真正被 gunicorn 加载的那个对象
+================================================================================
 """
 
 from __future__ import annotations
@@ -40,11 +57,21 @@ from app.api.admin import (
 )
 from app.core.config import get_settings
 
+# ── 第 1 块：日志器和正则 ────────────────────────────────────────────────
+# 全项目的主日志器。给它起个固定名字，方便在日志里筛。
 _logger = logging.getLogger("medical-ai")
+# 校验前端自带的追踪编号：只允许字母数字和横杠，最长 64 个字符。
+# ★ 这个限制是安全措施，原因见第 4a 块。
 _REQUEST_ID_RE = re.compile(r"^[A-Za-z0-9-]{1,64}$")
 
 
+# ── 第 2 块：日志格式 ────────────────────────────────────────────────────
 def _setup_logging() -> None:
+    """配置日志的输出格式。
+
+    level=INFO 表示 INFO 及以上级别都打印（DEBUG 不打）。
+    格式里带时间、级别、来源，方便 `docker logs` 时快速定位。
+    """
     logging.basicConfig(
         level=logging.INFO,
         format="%(asctime)s [%(levelname)s] %(name)s %(message)s",
@@ -52,15 +79,27 @@ def _setup_logging() -> None:
     )
 
 
+# ── 第 3 块：启动 / 关闭钩子 ─────────────────────────────────────────────
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncIterator[None]:
+    """应用启动时跑 yield 之前的，关闭时跑 yield 之后的。
+
+    这里只打两条日志。看 `docker logs` 时，出现 backend_starting
+    就说明这个进程起来了；4 个 gunicorn 进程会各打一条。
+    """
     _setup_logging()
     _logger.info("backend_starting", extra={"version": get_settings().APP_VERSION})
     yield
     _logger.info("backend_shutting_down")
 
 
+# ── 第 4 块：装配函数 ★ ──────────────────────────────────────────────────
 def create_app() -> FastAPI:
+    """把所有零件装到一起，返回一个可以运行的应用对象。
+
+    ★ 为什么写成函数而不是直接在文件里一行行写：
+      测试需要能造出一个干净的应用实例。写成函数就能随时再造一个。
+    """
     settings = get_settings()
     app = FastAPI(
         title="Medical AI Draft Review – API",
@@ -72,6 +111,7 @@ def create_app() -> FastAPI:
         lifespan=lifespan,
     )
 
+    # ---- 4a：请求编号中间件 ----
     # --- Request-ID middleware (inlined for V4 hotfix — no new file) ---
     #
     # ★ 中文：给每个请求发一个 8 位追踪 ID，同时写进日志和返回给前端。
@@ -98,6 +138,7 @@ def create_app() -> FastAPI:
         response.headers["X-Request-ID"] = rid  # 回传给前端
         return response
 
+    # ---- 4b：三个异常处理器 ----
     # --- Structured error handlers ---
     #
     # ★ 中文：三个异常处理器，把所有错误统一成
@@ -183,6 +224,7 @@ def create_app() -> FastAPI:
     # 生产环境前后端同域（都在 medraftlab.com 下，由 Caddy 分流），
     # 所以其实用不上 CORS；配置留着是为了本地开发时前端在 :3000、
     # 后端在 :8000，属于跨域。
+    # ---- 4c：CORS ----
     app.add_middleware(
         CORSMiddleware,
         allow_origins=settings.CORS_ORIGINS,
@@ -193,6 +235,7 @@ def create_app() -> FastAPI:
 
     # ---- 注册所有接口路由 ----
     # 每个 router 自带前缀，具体路径见各文件顶部。
+    # ---- 4d：注册全部路由 ----
     app.include_router(healthz.router)          # /healthz          健康检查
     app.include_router(session_api.router)      # /api/session      建档
     app.include_router(case.router)             # /api/case/*       发题
@@ -209,5 +252,7 @@ def create_app() -> FastAPI:
     return app
 
 
+# ── 第 5 块：应用对象 ────────────────────────────────────────────────────
 # gunicorn 启动时加载的就是这个变量（命令行里的 "app.main:app"）。
+# 模块被导入时这一行就会执行，把整个应用装配好。
 app = create_app()

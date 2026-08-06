@@ -1,11 +1,41 @@
-"""题目的数据格式定义。分两套，用途完全不同：
+"""
+================================================================================
+文件作用：题目的两套数据格式 —— 一套给前端，一套读题库文件
+================================================================================
 
-  CasePayload / CaseResponse  —— **发给前端**的格式（只含医生该看到的）
-  CaseRaw / CaseRawGuardrail  —— **读 cases.json** 的格式（含标准答案等全部字段）
+同样是"一道题"，在两个地方长得不一样：
 
-★ 这个分离是安全设计：CasePayload 里根本没有 goldAction / defectType 字段，
-所以就算写代码时手滑，也不可能把标准答案漏给前端——医生打开浏览器的
-开发者工具也看不到答案。
+  CasePayload / CaseResponse
+      **发给前端**的格式。只包含医生该看到的内容。
+
+  CaseRaw / CaseRawGuardrail
+      **读 backend/data/cases.json** 用的格式。包含标准答案、
+      埋了什么错等全部字段。
+
+--------------------------------------------------------------------------------
+★ 为什么要分成两套（这是本项目最重要的一处安全设计）
+--------------------------------------------------------------------------------
+CasePayload 这个类里**根本就没有定义** goldAction、defectPresent、
+defectType 这几个字段。
+
+所以就算哪天有人写代码时手滑，想把整个 case 对象直接返回给前端，
+Pydantic 也会自动把这些字段丢掉——它只认自己声明过的字段。
+
+如果不分两套、直接把数据库对象扔给前端，医生随便打开浏览器的开发者工具
+（F12 → 网络），就能在返回内容里看到这道题的标准答案。整个实验就废了。
+
+这种"靠类型定义来兜底"的做法比"记得别返回敏感字段"可靠得多——
+前者是机器保证的，后者靠人记性。
+
+--------------------------------------------------------------------------------
+本文件的代码块（从上到下）：
+--------------------------------------------------------------------------------
+  第 1 块  GuardrailContent    风险提示面板的内容（V4 不显示）
+  第 2 块  CasePayload         ★ 发给前端的题目（不含答案）
+  第 3 块  CaseResponse        接口的最外层包装
+  第 4 块  CaseRawGuardrail    读 JSON 用的 guardrail 段格式
+  第 5 块  CaseRaw             ★ 读 JSON 用的完整格式（含答案）
+================================================================================
 """
 
 from __future__ import annotations
@@ -15,6 +45,7 @@ from typing import Any
 from pydantic import BaseModel, Field
 
 
+# ── 第 1 块：风险提示面板内容 ────────────────────────────────────────────
 class GuardrailContent(BaseModel):
     """V3 的「风险提示面板」内容。V4 单一条件，不再显示，恒为 None。"""
 
@@ -23,6 +54,7 @@ class GuardrailContent(BaseModel):
     checklist: list[str] = Field(default_factory=list)   # 核对清单
 
 
+# ── 第 2 块：发给前端的题目 ★ ───────────────────────────────────────────
 class CasePayload(BaseModel):
     """Case content returned to the frontend. Already filtered by condition.
 
@@ -39,6 +71,7 @@ class CasePayload(BaseModel):
     guardrail: GuardrailContent | None = None  # V4 恒为 None
 
 
+# ── 第 3 块：接口的最外层包装 ───────────────────────────────────────────
 class CaseResponse(BaseModel):
     """接口的最外层包装：{"case": {...}}。
 
@@ -54,6 +87,7 @@ class CaseResponse(BaseModel):
 # ---------------------------------------------------------------------------
 
 
+# ── 第 4 块：读 JSON 用的 guardrail 段 ──────────────────────────────────
 class CaseRawGuardrail(BaseModel):
     """cases.json 里 guardrail 段的格式。三个字段都必填（不像 CasePayload 有默认值），
     这样题目文件里漏写会在 seed 时立刻报错，而不是悄悄存成空。"""
@@ -63,6 +97,7 @@ class CaseRawGuardrail(BaseModel):
     checklist: list[str]
 
 
+# ── 第 5 块：读 JSON 用的完整格式 ★ ─────────────────────────────────────
 class CaseRaw(BaseModel):
     """★ backend/data/cases.json 里一道题的完整格式。
 
