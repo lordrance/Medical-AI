@@ -1,24 +1,44 @@
-"""★ 研究统计的核心。所有分析指标都在这里算出来。
+"""
+================================================================================
+文件作用：★ 研究统计的核心 —— 论文里的数字都是这里算出来的
+================================================================================
+
+这个文件把数据库里一行行原始记录，变成论文能用的指标。
+它不碰 HTTP、不管前端，只做纯计算，所以最容易单独测试和复核。
 
 被两个地方调用：
-  - 管理后台的看板和导出（api/admin/）
-  - 医生提交后测时算「你答对了几道」（api/survey.py）
+  * 管理后台的看板和数据导出（api/admin/ 下面几个文件）
+  * 医生提交后测时，算「你答对了几道」显示在完成页上（api/survey.py）
 
-这个文件不碰 HTTP、不管前端，只做纯计算，所以最容易单独测试。
+--------------------------------------------------------------------------------
+★ 判分规则（整个文件的基础）
+--------------------------------------------------------------------------------
+医生选的处理方式，只要满足下面任一条就算「答对」：
+    1. 正好是 gold_action（研究团队认为最恰当的做法）
+    2. 在 gold_action_alternates 里（次优但也可接受的做法）
 
-主要函数：
-  session_formal_performance  某个人答对几道（完成页展示用）
-  completion_stats            总人数 / 完成人数
-  confusion_matrix            混淆矩阵：标准答案 vs 医生实际选择
-  per_case_stats              每道题的统计（哪道题最容易出错）
-  per_participant_stats       每个人的统计（谁在敷衍了事）
-  log_stats_overall           整体行为指标
-  completion_timeseries       完成人数随时间的曲线
-  ui_event_frequency          行为热力图
-  active_sessions             当前有多少人在线答题
+比如一道该「弃用并重写」的题，医生选了「上报」也算合理，不算错。
+这两个字段都定义在 backend/data/cases.json 里。
 
-判分规则：医生选的处理方式 == gold_action，或者在 gold_action_alternates
-（次优但可接受）里，就算答对。
+--------------------------------------------------------------------------------
+本文件的代码块（从上到下）：
+--------------------------------------------------------------------------------
+  第 1 块  ALL_ACTIONS                        四种处理方式的固定顺序
+  第 2 块  _action_matches_gold()             ★ 判分规则本身
+  第 3 块  _dedupe_presentations_by_session_case()  去掉历史遗留的重复记录
+  第 4 块  session_formal_performance()       某个人答对几道（完成页用）
+  第 5 块  completion_stats()                 总人数 / 完成人数
+  第 6 块  _formal_presentations()            取出全部"已作答的正式题"
+  第 7 块  confusion_matrix()                 ★ 混淆矩阵（论文最核心的表）
+  第 8 块  per_case_stats()                   ★ 每道题的统计
+  第 9 块  per_participant_stats()            ★ 每个人的统计
+  第10 块  _percentile() / _as_utc()          两个小工具
+  第11 块  llm_call_stats()                   AI 调用统计
+  第12 块  _bucket_dt() / completion_timeseries()  完成人数随时间的曲线
+  第13 块  log_stats_overall()                整体行为指标
+  第14 块  ui_event_frequency()               行为埋点频次（热力图）
+  第15 块  active_sessions()                  当前谁在线答题
+================================================================================
 """
 
 from __future__ import annotations
@@ -43,6 +63,8 @@ from app.db.models import (
 )
 from app.schemas.common import ACTION_LABEL_ZH
 
+# ── 第 1 块：四种处理方式的固定顺序 ──────────────────────────────────────
+# ★ 顺序很重要：混淆矩阵的行列都按这个顺序排，改了顺序矩阵就错位了。
 ALL_ACTIONS: list[str] = [
     "send_as_is",
     "edit_then_send",
@@ -51,6 +73,7 @@ ALL_ACTIONS: list[str] = [
 ]
 
 
+# ── 第 2 块：判分规则 ★ ──────────────────────────────────────────────────
 def _action_matches_gold(case: Case, selected: str) -> bool:
     """★ 判分规则：这道题答对了吗？
 
@@ -62,6 +85,7 @@ def _action_matches_gold(case: Case, selected: str) -> bool:
     return selected == case.gold_action or selected in alts
 
 
+# ── 第 3 块：去重 ────────────────────────────────────────────────────────
 def _dedupe_presentations_by_session_case(
     rows: list[CasePresentation],
 ) -> list[CasePresentation]:
@@ -90,6 +114,7 @@ def _dedupe_presentations_by_session_case(
     return list(best.values())
 
 
+# ── 第 4 块：某个人答对几道 ──────────────────────────────────────────────
 async def session_formal_performance(
     db: AsyncSession, session_id: str
 ) -> dict[str, Any]:
@@ -121,7 +146,9 @@ async def session_formal_performance(
     }
 
 
+# ── 第 5 块：完成率 ──────────────────────────────────────────────────────
 async def completion_stats(db: AsyncSession) -> dict[str, Any]:
+    """总共多少人开始了、多少人做完了。后台首页那两个数字。"""
     total = (await db.execute(select(func.count(Participant.id)))).scalar() or 0
     completed = (
         await db.execute(
@@ -143,6 +170,7 @@ async def completion_stats(db: AsyncSession) -> dict[str, Any]:
     }
 
 
+# ── 第 6 块：取出全部已作答的正式题 ──────────────────────────────────────
 async def _formal_presentations(db: AsyncSession) -> list[CasePresentation]:
     """取出全部「已作答的正式题」记录，供下面各个统计函数复用。
 
@@ -167,6 +195,7 @@ async def _formal_presentations(db: AsyncSession) -> list[CasePresentation]:
     return _dedupe_presentations_by_session_case(filtered)
 
 
+# ── 第 7 块：混淆矩阵 ★ 论文最核心的一张表 ──────────────────────────────
 async def confusion_matrix(db: AsyncSession) -> dict[str, Any]:
     """★ 混淆矩阵：标准答案（行）vs 医生实际选择（列）。
 
@@ -203,7 +232,9 @@ async def confusion_matrix(db: AsyncSession) -> dict[str, Any]:
     }
 
 
+# ── 第 8 块：每道题的统计 ★ ─────────────────────────────────────────────
 async def per_case_stats(db: AsyncSession) -> list[dict[str, Any]]:
+    """按题目分组统计。用来回答"哪道题最多人栽跟头"。"""
     rows = await _formal_presentations(db)
     by_case: dict[str, list[CasePresentation]] = defaultdict(list)
     for r in rows:
@@ -282,7 +313,10 @@ async def per_case_stats(db: AsyncSession) -> list[dict[str, Any]]:
     return results
 
 
+# ── 第 9 块：每个人的统计 ★ ─────────────────────────────────────────────
 async def per_participant_stats(db: AsyncSession) -> list[dict[str, Any]]:
+    """按人分组统计。用来回答"谁在敷衍了事"——
+    比如某人 8 道题全选原样发送、平均每题只花 10 秒。"""
     rows = await _formal_presentations(db)
     by_pt: dict[str, list[CasePresentation]] = defaultdict(list)
     for r in rows:
@@ -343,8 +377,18 @@ async def per_participant_stats(db: AsyncSession) -> list[dict[str, Any]]:
 # ---------------------------------------------------------------------------
 
 
+# ── 第 10 块：两个小工具 ─────────────────────────────────────────────────
 def _percentile(sorted_vals: list[int], q: float) -> float:
-    """Linear-interpolation percentile on a SORTED list. q in [0, 1]."""
+    """Linear-interpolation percentile on a SORTED list. q in [0, 1].
+
+    中文：算百分位数。q=0.5 就是中位数，q=0.95 就是 95 分位。
+    传进来的列表**必须已经排好序**，函数自己不排（排序是调用方的事，
+    避免同一份数据被反复排序）。
+
+    ★ 为什么看中位数而不只看平均数：平均数会被极端值带偏。
+    一个人挂机 2 小时，能把全组的"平均用时"抬高一大截，
+    而中位数几乎不受影响，更能代表"典型的医生"。
+    """
     if not sorted_vals:
         return 0.0
     if len(sorted_vals) == 1:
@@ -366,9 +410,13 @@ def _as_utc(dt: datetime | None) -> datetime | None:
     return dt
 
 
+# ── 第 11 块：AI 调用统计 ────────────────────────────────────────────────
 async def llm_call_stats(db: AsyncSession) -> dict[str, Any]:
     """LLM operational health: per-purpose latency p50/p95, token totals,
     error rate, and recent-24h call counts.
+
+    中文：AI 调用了多少次、失败多少、多慢。
+    ★ V4 医生端完全不调 AI，所以生产环境这里通常全是 0。
 
     Returns:
         {
@@ -431,9 +479,15 @@ async def llm_call_stats(db: AsyncSession) -> dict[str, Any]:
     }
 
 
+# ── 第 12 块：时间曲线 ───────────────────────────────────────────────────
 def _bucket_dt(dt: datetime, bucket: str) -> str:
     """Truncate a datetime to a bucket boundary and return an ISO-8601 string.
-    bucket ∈ {'hour', 'day'}. Always emits UTC."""
+    bucket ∈ {'hour', 'day'}. Always emits UTC.
+
+    中文：把一个时刻归到"哪个小时"或"哪一天"这个格子里，用来画曲线。
+    比如 14:37 按小时归到 14:00。统一转成 UTC 再归位，
+    否则跨时区的数据会落到错误的格子里。
+    """
     dt = dt.astimezone(timezone.utc)
     if bucket == "day":
         truncated = dt.replace(hour=0, minute=0, second=0, microsecond=0)
@@ -490,11 +544,15 @@ _LOG_STATS_KEYS_SCALAR: tuple[str, ...] = (
 )
 
 
+# ── 第 13 块：整体行为指标 ──────────────────────────────────────────────
 async def log_stats_overall(db: AsyncSession) -> dict[str, Any]:
     """Cohort-wide averages of the log_* fields in actions.client_stats.
 
     V4: single-condition study, so the V3 by-condition comparison
     collapses to one column. Practice cases excluded.
+
+    中文：全体医生的平均用时、平均编辑距离、四种处理方式的分布等。
+    只统计 8 道正式题，练习题不算。
 
     Returns:
         {
@@ -540,6 +598,7 @@ async def log_stats_overall(db: AsyncSession) -> dict[str, Any]:
     return {"metrics": metrics}
 
 
+# ── 第 14 块：行为埋点频次 ──────────────────────────────────────────────
 async def ui_event_frequency(
     db: AsyncSession, by: str = "condition"
 ) -> list[dict[str, Any]]:
@@ -591,11 +650,16 @@ async def ui_event_frequency(
     return out
 
 
+# ── 第 15 块：谁在线答题 ────────────────────────────────────────────────
 async def active_sessions(db: AsyncSession) -> list[dict[str, Any]]:
     """Sessions with status != 'completed': in-progress experiments.
 
     Returns elapsed time since start, the timestamp of the last UI event,
     and the most recent event_type so researchers can spot stuck sessions.
+
+    ★ 中文：发放问卷期间最有用的一个接口——实时看到有几个人正在做、
+    做到第几题了、最后一次动作是什么时候。
+    如果某人最后动作停在 20 分钟前，多半是卡住或放弃了。
     """
     sessions = (
         await db.execute(
