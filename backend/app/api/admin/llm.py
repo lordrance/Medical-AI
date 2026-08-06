@@ -1,3 +1,44 @@
+"""
+================================================================================
+文件作用：管理员专用的 AI 功能 —— 帮你写研究总结
+================================================================================
+
+★ 先说最重要的一件事：**这几个接口和医生完全无关。**
+
+  V4 的医生端一次都不会调用 AI（题目里的 AI 草稿是预先写死在 cases.json 里
+  的，原因见 api/case.py 开头的长注释）。这个文件里的接口只有你在管理后台
+  主动点按钮时才会跑。
+
+  所以生产环境的 llm_calls 表是 0 行，健康检查里 llmEnabled 也是 false
+  （因为 LLM_PROVIDER=disabled）。要用这些功能，得先在服务器的 .env 里
+  改成 deepseek 并配上 API key。
+
+四个接口：
+  POST /api/admin/llm/case-draft           给一段患者消息，让 AI 起草回复
+                                           （出题时打草稿用，不是给医生的）
+  POST /api/admin/llm/participant-summary  让 AI 总结某一位医生的表现
+  POST /api/admin/llm/cohort-summary       ★ 让 AI 总结全体数据（写论文用）
+  GET  /api/admin/llm/health               AI 服务通不通
+
+--------------------------------------------------------------------------------
+★ 一条铁律：每次调用 AI 都必须记账
+--------------------------------------------------------------------------------
+成功要调 record_llm_call，失败也要调（见 services/llm_audit.py）。
+只在成功时记账是修过的一个真 bug（commit bc933f9）——出问题时最需要看的
+恰恰是失败的那些调用。
+
+--------------------------------------------------------------------------------
+本文件的代码块（从上到下）：
+--------------------------------------------------------------------------------
+  第 1 块  router                     路由器
+  第 2 块  四个 In/Response 类        请求和响应的格式
+  第 3 块  llm_case_draft()           AI 起草回复（出题辅助）
+  第 4 块  llm_participant_summary()  AI 总结单个医生
+  第 5 块  llm_cohort_summary()       ★ AI 总结全体（写论文用）
+  第 6 块  llm_health()               AI 服务健康检查
+================================================================================
+"""
+
 from __future__ import annotations
 
 import json
@@ -24,19 +65,26 @@ from app.services.analysis import (
 )
 from app.services.llm_audit import record_llm_call
 
+# ── 第 1 块：路由器 ──────────────────────────────────────────────────────
 router = APIRouter(prefix="/api/admin/llm", tags=["admin-llm"])
 
 
+# ── 第 2 块：请求和响应的格式 ────────────────────────────────────────────
 class CaseDraftIn(BaseModel):
+    """给 AI 起草回复时要提供的输入：患者消息 + 病历。"""
     patientMessage: str
     chartSnapshot: dict[str, Any]
 
 
 class ParticipantSummaryIn(BaseModel):
+    """要总结哪位医生。"""
+
     participantId: str
 
 
 class CaseDraftResponse(BaseModel):
+    """AI 起草的结果，附带用量信息（算钱和排查用）。"""
+
     text: str
     provider: str
     model: str
@@ -46,6 +94,8 @@ class CaseDraftResponse(BaseModel):
 
 
 class SummaryResponse(BaseModel):
+    """AI 总结的结果，字段含义同上。"""
+
     summaryText: str
     provider: str
     model: str
@@ -54,6 +104,9 @@ class SummaryResponse(BaseModel):
     latencyMs: int
 
 
+# ── 第 3 块：AI 起草回复（出题辅助）─────────────────────────────────────
+# ★ 这个接口生成的文本**不会**直接给医生看。它是你出题时打草稿用的：
+#   生成一版，人工审核修改，再写进 cases.json 定稿。
 @router.post("/case-draft", response_model=CaseDraftResponse)
 async def llm_case_draft(
     request: Request,
@@ -110,6 +163,7 @@ async def llm_case_draft(
     )
 
 
+# ── 第 4 块：AI 总结单个医生 ────────────────────────────────────────────
 @router.post("/participant-summary", response_model=SummaryResponse)
 async def llm_participant_summary(
     request: Request,
@@ -183,6 +237,7 @@ async def llm_participant_summary(
     )
 
 
+# ── 第 5 块：AI 总结全体数据 ★ 写论文用 ─────────────────────────────────
 @router.post("/cohort-summary", response_model=SummaryResponse)
 async def llm_cohort_summary(
     request: Request, db: AsyncSession = Depends(db_session)
@@ -245,6 +300,7 @@ async def llm_cohort_summary(
     )
 
 
+# ── 第 6 块：AI 服务健康检查 ────────────────────────────────────────────
 @router.get("/health")
 async def llm_health(request: Request) -> dict:
     require_admin(request)

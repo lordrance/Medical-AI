@@ -1,13 +1,38 @@
-"""★ 数据导出 —— 你写论文时取数据的地方。
+"""
+================================================================================
+文件作用：★ 数据导出 —— 你写论文时取数据的地方
+================================================================================
 
 三种导出方式，从粗到细：
 
-  GET /api/admin/export/full-database  整库 SQL 备份（最完整，能原样还原）
-  GET /api/admin/export/bundle         ZIP 打包多张表的 CSV（★ 最常用）
-  GET /api/admin/export?table=xxx      单张表，CSV 或 JSON
+  GET /api/admin/export/full-database
+      整库 SQL 备份。最完整，拿着它能在任何机器上还原出一模一样的数据库。
+      服务器上每天也会自动生成一份（docker-compose 里的 backup 容器）。
 
-★ 安全：三个接口都要管理员 token。后台前端用 downloadWithToken()
-下载（fetch + Blob），保证 token 只走请求头、不进网址。
+  GET /api/admin/export/bundle          ★ 最常用
+      一个 ZIP，里面每张表一个 CSV。解压后直接用 Excel / SPSS / R 打开。
+
+  GET /api/admin/export?table=xxx
+      单张表，可选 CSV 或 JSON 格式。
+
+--------------------------------------------------------------------------------
+★ 安全
+--------------------------------------------------------------------------------
+三个接口都必须调 require_admin。这些数据包含医生的全部作答和开放题原文，
+漏掉一行鉴权就等于把研究数据公开。
+
+后台前端下载文件走的是 downloadWithToken()（fetch + Blob 合成下载），
+保证管理员口令只出现在请求头里，不进网址。
+
+--------------------------------------------------------------------------------
+本文件的代码块（从上到下）：
+--------------------------------------------------------------------------------
+  第 1 块  TableName / EXPORT_DATA_TABLES  允许导出哪些表（白名单）
+  第 2 块  export_full_database()          整库 SQL 备份
+  第 3 块  export_bundle()                 ★ ZIP 打包多张表的 CSV
+  第 4 块  export()                        单张表
+  第 5 块  _load_table()                   按表名取数据（上面三个都用它）
+================================================================================
 """
 
 from __future__ import annotations
@@ -50,6 +75,10 @@ from app.services.database_dump import full_database_dump_bytes
 
 router = APIRouter(prefix="/api/admin", tags=["admin"])
 
+# ── 第 1 块：可导出的表（白名单）─────────────────────────────────────────
+# Literal 表示"只能是列出的这几个值之一"。
+# ★ 这是安全措施：表名会被用来决定查哪张表，不加白名单的话，
+#   别人传个奇怪的表名进来就可能读到不该读的东西。
 TableName = Literal[
     "participants",
     "sessions",
@@ -81,6 +110,7 @@ EXPORT_DATA_TABLES: tuple[str, ...] = (
 )
 
 
+# ── 第 2 块：整库 SQL 备份 ───────────────────────────────────────────────
 @router.get("/export/full-database")
 async def export_full_database(request: Request) -> Response:
     """Download entire DB as SQL (SQLite: iterdump; Postgres: pg_dump). Admin only.
@@ -115,6 +145,7 @@ async def export_full_database(request: Request) -> Response:
     )
 
 
+# ── 第 3 块：ZIP 打包多张表 ★ 最常用 ────────────────────────────────────
 @router.get("/export/bundle")
 async def export_bundle(
     request: Request,
@@ -169,6 +200,7 @@ async def export_bundle(
     )
 
 
+# ── 第 4 块：导出单张表 ──────────────────────────────────────────────────
 @router.get("/export")
 async def export(
     request: Request,
@@ -179,12 +211,14 @@ async def export(
     require_admin(request)
     rows: Any = await _load_table(table, db)
 
+    # JSON 格式直接返回，不用转换——数据本来就是字典。
     if format == "json":
         return JSONResponse(
             content=rows,
             headers={"Content-Disposition": f'attachment; filename="{table}.json"'},
         )
 
+    # CSV 格式：summary 是嵌套结构，要先摊平；普通表直接转。
     if table == "summary":
         flat = flatten_summary(rows)  # type: ignore[arg-type]
         csv_text = to_csv(flat)
@@ -193,12 +227,22 @@ async def export(
 
     return Response(
         content=csv_text,
+        # ★ charset=utf-8 必须写：不写的话浏览器/Excel 可能按本地编码解析，
+        #   中文答案会变成乱码。
         media_type="text/csv; charset=utf-8",
+        # Content-Disposition: attachment 告诉浏览器"这是要下载的文件"，
+        # 而不是"在页面里显示出来"。filename 是保存时的默认文件名。
         headers={"Content-Disposition": f'attachment; filename="{table}.csv"'},
     )
 
 
+# ── 第 5 块：按表名取数据 ────────────────────────────────────────────────
 async def _load_table(table: str, db: AsyncSession) -> Any:
+    """根据表名去数据库取出对应的数据，转成一个个普通字典。
+
+    上面三个导出接口都调它，取完再各自决定转成 CSV 还是 ZIP。
+    "summary" 是个特例：它不是一张表，而是现算的统计结果。
+    """
     if table == "participants":
         rows = (await db.execute(select(Participant))).scalars().all()
         return [

@@ -1,20 +1,28 @@
-"""Research real-time audit dashboard endpoints.
+"""
+================================================================================
+文件作用：管理后台看板的数据接口（6 个）
+================================================================================
 
-These power the live `/admin` dashboard sections that researchers use to
-audit incoming experimental data while the study is running. Each endpoint
-returns a single aggregation; `/overview` bundles all of them for a single
-client roundtrip.
+后台 /admin 页面上那些图表的数据都从这里来：完成人数曲线、行为分布柱状图、
+埋点热力图、当前在线答题的人。
 
-Auth: every endpoint requires `X-Admin-Token` via `require_admin`, mirroring
-the pattern in admin/summary.py and admin/export.py.
+★ 这些接口本身只是薄薄一层壳，真正的计算全在 services/analysis.py 里。
+  这么分的好处：计算逻辑可以脱离 HTTP 单独测试，也能被导出功能复用。
 
-★ 中文：管理后台看板的数据接口，共 6 个。
+★ 每个接口都必须调 require_admin(request)。漏一个就等于把研究数据
+  公开给全世界。
 
-这些接口本身只是「薄薄一层壳」——真正的计算全在 services/analysis.py 里。
-这样做的好处是：计算逻辑可以脱离 HTTP 单独测试，也能被导出功能复用。
-
-★ 每个接口都必须调 require_admin(request)。漏了就等于把研究数据
-公开给全世界。加新接口时千万别忘。
+--------------------------------------------------------------------------------
+本文件的代码块（从上到下）：
+--------------------------------------------------------------------------------
+  第 1 块  router               路由器，挂在 /api/admin/dashboard 下
+  第 2 块  get_llm_stats()      AI 调用统计
+  第 3 块  get_timeseries()     完成人数随时间的曲线
+  第 4 块  get_log_overall()    整体行为指标
+  第 5 块  get_ui_events()      埋点频次（热力图）
+  第 6 块  get_active_sessions()★ 当前谁在线答题
+  第 7 块  get_overview()       ★ 一次性返回上面全部（前端实际用的是这个）
+================================================================================
 """
 
 from __future__ import annotations
@@ -34,9 +42,11 @@ from app.services.analysis import (
     ui_event_frequency,
 )
 
+# ── 第 1 块：路由器 ──────────────────────────────────────────────────────
 router = APIRouter(prefix="/api/admin/dashboard", tags=["admin-dashboard"])
 
 
+# ── 第 2 块：AI 调用统计 ─────────────────────────────────────────────────
 @router.get("/llm-stats")
 async def get_llm_stats(
     request: Request, db: AsyncSession = Depends(db_session)
@@ -46,6 +56,7 @@ async def get_llm_stats(
     return await llm_call_stats(db)
 
 
+# ── 第 3 块：完成人数曲线 ────────────────────────────────────────────────
 @router.get("/timeseries")
 async def get_timeseries(
     request: Request,
@@ -60,6 +71,7 @@ async def get_timeseries(
     return await completion_timeseries(db, bucket=bucket, window_hours=window_hours)
 
 
+# ── 第 4 块：整体行为指标 ────────────────────────────────────────────────
 @router.get("/log-overall")
 async def get_log_overall(
     request: Request, db: AsyncSession = Depends(db_session)
@@ -69,6 +81,7 @@ async def get_log_overall(
     return await log_stats_overall(db)
 
 
+# ── 第 5 块：埋点频次 ────────────────────────────────────────────────────
 @router.get("/ui-events")
 async def get_ui_events(
     request: Request,
@@ -80,6 +93,7 @@ async def get_ui_events(
     return await ui_event_frequency(db, by=by)
 
 
+# ── 第 6 块：谁在线答题 ★ ───────────────────────────────────────────────
 @router.get("/active-sessions")
 async def get_active_sessions(
     request: Request, db: AsyncSession = Depends(db_session)
@@ -90,6 +104,7 @@ async def get_active_sessions(
     return await active_sessions(db)
 
 
+# ── 第 7 块：一次性打包返回 ★ ───────────────────────────────────────────
 @router.get("/overview")
 async def get_overview(
     request: Request, db: AsyncSession = Depends(db_session)

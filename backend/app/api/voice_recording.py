@@ -1,23 +1,42 @@
-"""Voice recording endpoints for the L1/L2/L3 open-ended post-survey items.
+"""
+================================================================================
+文件作用：语音录音的上传和下载（★ V4 前端已停用，接口保留）
+================================================================================
 
-V4 lets participants record an audio answer for each of the final three
-open-ended questions in addition to (or instead of) typing. The audio is
-stored on the server's local filesystem under
-`backend/data/voice_recordings/<session_id>/<question_id>_<timestamp>.<ext>`
-and a metadata row is written to the `voice_recordings` table for admin
-auditing and later transcription.
+★ 当前状态：这个功能在前端已经关掉了（见 frontend/src/app/post-survey/
+  page.tsx 里被注释掉的那段）。医生看不到录音按钮，所以下面这个上传接口
+  实际上没人会调，生产库里 voice_recordings 表是 0 行。
 
-Public endpoint:
-  POST /api/voice-recording
-        multipart/form-data:
-          sessionId    str
-          questionId   str
-          durationMs   int (optional; -1 / 0 if unknown)
-          audio        file (the MediaRecorder Blob)
+  关掉的原因：它是整个流程里最不可靠的一环——要麦克风权限、要浏览器支持
+  MediaRecorder、还要在手机网络上传好几 MB，而且失败提示出现在最后一页，
+  很容易吓跑医生。而分析用的是文字答案，录音只是锦上添花。
 
-Admin endpoints (X-Admin-Token required):
-  GET  /api/admin/voice-recording/{id}      — stream a single recording
-  GET  /api/admin/export/voice-recordings   — ZIP all recordings + index.csv
+  代码保留是为了将来想恢复时不用重写；也因为删掉它要动路由注册、
+  导出功能和 5 个测试，为零收益引入风险。
+
+原本的设计：后测最后三道开放题，医生可以录一段语音代替打字，
+研究团队事后人工转写。
+
+  音频文件存服务器磁盘：backend/data/voice_recordings/<会话id>/<题号>_<时间>.<扩展名>
+  数据库只存路径和元信息（大文件塞进数据库会让备份变得极慢）
+
+--------------------------------------------------------------------------------
+★ 一个踩过的坑
+--------------------------------------------------------------------------------
+docker-compose 把宿主机的 data/voice_recordings 挂进容器。如果这个目录
+不存在，Docker 会用 root 身份建出来，而容器里的应用跑在 uid 1001，
+写不进去 → 上传报 500。上海服务器就这么坏过（tarball 迁移时目录被 root 重建）。
+现在 deploy/setup.sh 会提前建好目录并设对属主。
+
+--------------------------------------------------------------------------------
+本文件的代码块（从上到下）：
+--------------------------------------------------------------------------------
+  第 1 块  _VOICE_DIR / _MAX_BYTES / _ALLOWED_MIMES  存储位置和限制
+  第 2 块  几个小工具                 文件名清洗、扩展名推断
+  第 3 块  submit_recording()         上传录音（医生端，已停用）
+  第 4 块  get_recording()            下载单个录音（管理员）
+  第 5 块  export_all_recordings()    打包下载全部录音（管理员）
+================================================================================
 """
 
 from __future__ import annotations
@@ -55,9 +74,15 @@ router = APIRouter(tags=["voice-recording"])
 
 # Where recordings are stored on disk. Path is relative to the backend
 # working directory (where uvicorn runs from). Added to .gitignore.
+# ── 第 1 块：存储位置和限制 ──────────────────────────────────────────────
+# 音频存哪。生产环境由 docker-compose 注入成 /app/data/voice_recordings，
+# 那个路径又挂载到宿主机上，所以容器重建后文件还在。
 _VOICE_DIR = Path(os.environ.get("VOICE_RECORDINGS_DIR", "data/voice_recordings"))
 
 # Max recording size — guard against very long stuck uploads.
+# 单个录音最大 50 MB。50 MB 的 webm/opus 差不多是两小时以上的音频，
+# 正常录音远远到不了，这个限制是防止有人上传超大文件把磁盘撑爆。
+# ★ Caddy 那边也有一道同样的限制（见 deploy/Caddyfile），双保险。
 _MAX_BYTES = 50 * 1024 * 1024  # 50 MB per recording
 
 # Allowed MIME types from MediaRecorder. Chromium / Firefox default to opus
@@ -73,7 +98,14 @@ _ALLOWED_MIMES = {
 }
 
 
+# ── 第 2 块：两个小工具 ──────────────────────────────────────────────────
 def _ext_for_mime(mime: str) -> str:
+    """根据音频类型推断文件扩展名。
+
+    浏览器录出来的格式各不相同：Chrome / Firefox 默认是 webm 装 opus，
+    Safari 用 mp4 装 aac。存盘时给对扩展名，你下载下来才能双击直接播放。
+    认不出来的一律叫 .bin，总比叫错强。
+    """
     if mime.startswith("audio/webm"):
         return "webm"
     if mime.startswith("audio/ogg"):
@@ -87,13 +119,24 @@ def _ext_for_mime(mime: str) -> str:
     return "bin"
 
 
+# 匹配"除了字母、数字、下划线、横杠之外的所有字符"。
 _SAFE_ID_RE = re.compile(r"[^A-Za-z0-9_\-]")
 
 
 def _safe(s: str) -> str:
+    """把一段文字洗成能安全当文件名的样子。
+
+    ★ 这是防「路径穿越攻击」的关键一步。
+    会话编号和题号会被拼进文件路径。如果不清洗，别人传一个
+    形如 "../../etc/passwd" 的题号进来，文件就会被写到你不希望的地方。
+    把所有特殊字符（包括斜杠和点）统统换成下划线，就不可能跳出目录了。
+
+    再截断到 120 个字符：文件系统对路径长度有上限，超了会写入失败。
+    """
     return _SAFE_ID_RE.sub("_", s)[:120]
 
 
+# ── 第 3 块：上传录音（医生端，已停用）──────────────────────────────────
 @router.post("/api/voice-recording")
 async def submit_recording(
     sessionId: str = Form(...),
@@ -150,6 +193,7 @@ async def submit_recording(
     return {"ok": True, "voiceRecordingId": rec.id, "fileSizeBytes": len(blob)}
 
 
+# ── 第 4 块：下载单个录音（管理员）──────────────────────────────────────
 @router.get("/api/admin/voice-recording/{recording_id}")
 async def get_recording(
     recording_id: str,
@@ -166,6 +210,7 @@ async def get_recording(
     return FileResponse(path, media_type=rec.mime_type, filename=path.name)
 
 
+# ── 第 5 块：打包下载全部录音（管理员）──────────────────────────────────
 @router.get("/api/admin/export/voice-recordings")
 async def export_recordings(
     request: Request,
