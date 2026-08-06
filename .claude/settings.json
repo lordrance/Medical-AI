@@ -1,12 +1,7 @@
 {
-  "_comment_overview": "Two things here: (1) `hooks.PreToolUse` runs block_dangerous_commands.py on every Bash/PowerShell call — blocks rm -rf, git push --force, git reset --hard, reading .env, printing $TOKEN, etc. (2) `permissions.allow` pre-approves the read-mostly + test + build + git-local commands used most often on this project, so the assistant doesn't need to re-ask for them every turn. Anything not listed still prompts you the first time. Adapted from claude-code-bmad-foundation.",
-
   "permissions": {
-    "defaultMode": "acceptEdits",
-
     "allow": [
       "Read(*)",
-
       "Bash(ls:*)",
       "Bash(pwd)",
       "Bash(cat:*)",
@@ -17,7 +12,6 @@
       "Bash(file:*)",
       "Bash(which:*)",
       "Bash(grep:*)",
-
       "Bash(git status:*)",
       "Bash(git diff:*)",
       "Bash(git log:*)",
@@ -36,7 +30,6 @@
       "Bash(git fetch:*)",
       "Bash(git for-each-ref:*)",
       "Bash(git merge-base:*)",
-
       "Bash(python -m pytest:*)",
       "Bash(python -m ruff:*)",
       "Bash(python -m mypy:*)",
@@ -44,7 +37,6 @@
       "Bash(python -m app.scripts.seed)",
       "Bash(python -m alembic:*)",
       "Bash(python --version)",
-
       "Bash(npm install:*)",
       "Bash(npm ci:*)",
       "Bash(npm run typecheck:*)",
@@ -52,7 +44,6 @@
       "Bash(npm run test:*)",
       "Bash(npm run build:*)",
       "Bash(npm run dev)",
-
       "Bash(docker ps:*)",
       "Bash(docker images:*)",
       "Bash(docker logs:*)",
@@ -62,13 +53,50 @@
       "Bash(docker buildx ls)",
       "Bash(docker compose ps:*)",
       "Bash(docker compose logs:*)",
-
       "Bash(curl -s http://localhost:*)",
       "Bash(curl -I http://localhost:*)",
-      "Bash(curl -s -o /dev/null:*)"
-    ]
+      "Bash(curl -s -o /dev/null:*)",
+      "Bash(python -m pytest -q)",
+      "Bash(ssh -i ~/.ssh/id_rsa root@101.32.216.183 \"cd ~/Medical-AI && git pull origin V4 && docker compose -f docker-compose.prod.yml up -d --build frontend 2>&1 | tail -8\")",
+      "Bash(curl -sk -o /dev/null -w \"HTTP %{http_code}\\\\n\" https://101-32-216-183.nip.io/healthz)",
+      "Bash(curl -sk -o /dev/null -w \"HTTP %{http_code}\\\\n\" https://101-32-216-183.nip.io/)",
+      "Bash(ssh -i ~/.ssh/id_rsa root@101.32.216.183 \"docker ps --format '{{.Names}}: {{.Status}}' | grep medical-ai\")",
+      "Bash(python -c \"import pydantic_settings, pydantic; print\\('pydantic_settings', pydantic_settings.__version__\\); print\\('pydantic', pydantic.__version__\\)\")",
+      "Bash(PYTHONIOENCODING=utf-8 python -m app.scripts.validate_data)",
+      "Bash(ssh -i ~/.ssh/id_rsa root@101.32.216.183 \"cd ~/Medical-AI && git pull origin V4 >/dev/null 2>&1 && echo '=== 校验 Caddyfile 语法 ===' && docker exec medical-ai-caddy-1 caddy validate --config /etc/caddy/Caddyfile --adapter caddyfile 2>&1 | tail -5\")",
+      "Bash(ssh -i ~/.ssh/id_rsa root@101.32.216.183 \"cd ~/Medical-AI && docker compose -f docker-compose.prod.yml up -d --build 2>&1 | tail -12\")",
+      "Bash(ssh -i /c/Users/rance/AppData/Local/Temp/claude/e--medical-Medical-AI/b523be42-ac7e-46b6-8a33-f29bd9ae3dec/scratchpad/sh.pem -o StrictHostKeyChecking=no ubuntu@150.158.45.106 'cd ~/Medical-AI-NEW && sudo docker compose -f docker-compose.prod.yml up -d --build frontend 2>&1 | tail -6 && sleep 8 && sudo docker ps --format \"{{.Names}}: {{.Status}}\" | grep medical-ai-new')",
+      "Read(//dev/**)",
+      "Bash(curl -sk -X POST https://medraftlab.com/api/voice-recording -F sessionId=522eae0128d941eb89b27298d5ef3e2f -F questionId=post_qual_l1_ehr_pain_ai_substitution -F durationMs=3000 -F 'audio=@C:/Users/rance/AppData/Local/Temp/claude/e--medical-Medical-AI/b523be42-ac7e-46b6-8a33-f29bd9ae3dec/scratchpad/a.webm;type=audio/webm' -w '  HTTP %{http_code}\\\\n')",
+      "Bash(curl -sk -X POST https://medraftlab.com/api/voice-recording -F sessionId=522eae0128d941eb89b27298d5ef3e2f -F questionId=q1 -F durationMs=1000 -F 'audio=@C:/Users/rance/AppData/Local/Temp/claude/e--medical-Medical-AI/b523be42-ac7e-46b6-8a33-f29bd9ae3dec/scratchpad/b.txt;type=text/plain' -w '  HTTP %{http_code}\\\\n')",
+      "Bash(curl -sk -X POST https://medraftlab.com/api/voice-recording -F sessionId=deadbeef -F questionId=q1 -F durationMs=1000 -F 'audio=@C:/Users/rance/AppData/Local/Temp/claude/e--medical-Medical-AI/b523be42-ac7e-46b6-8a33-f29bd9ae3dec/scratchpad/a.webm;type=audio/webm' -w '  HTTP %{http_code}\\\\n')",
+      "Bash(ssh -i /c/Users/rance/AppData/Local/Temp/claude/e--medical-Medical-AI/b523be42-ac7e-46b6-8a33-f29bd9ae3dec/scratchpad/sh.pem -o StrictHostKeyChecking=no ubuntu@150.158.45.106 'sudo docker logs medical-ai-new-backend-1 --since 5m 2>&1 | grep -A 30 \"06f3faf9\" | head -50')",
+      "Bash(ssh -i /c/Users/rance/AppData/Local/Temp/claude/e--medical-Medical-AI/b523be42-ac7e-46b6-8a33-f29bd9ae3dec/scratchpad/sh.pem -o StrictHostKeyChecking=no ubuntu@150.158.45.106 'sudo docker logs medical-ai-new-backend-1 --since 5m 2>&1 | grep -A 60 \"06f3faf9\" | tail -20 *)",
+      "Bash(ssh -i /c/Users/rance/AppData/Local/Temp/claude/e--medical-Medical-AI/b523be42-ac7e-46b6-8a33-f29bd9ae3dec/scratchpad/sh.pem -o StrictHostKeyChecking=no ubuntu@150.158.45.106 'set -e *)",
+      "Bash(curl -sk -X POST https://medraftlab.com/api/voice-recording -F sessionId=522eae0128d941eb89b27298d5ef3e2f -F questionId=post_qual_l1_ehr_pain_ai_substitution -F durationMs=3000 -F 'audio=@C:/Users/rance/AppData/Local/Temp/claude/e--medical-Medical-AI/b523be42-ac7e-46b6-8a33-f29bd9ae3dec/scratchpad/a.webm;type=audio/webm' -w '\\\\n  HTTP %{http_code}\\\\n')",
+      "Bash(curl -sk -X POST https://medraftlab.com/api/voice-recording -F sessionId=522eae0128d941eb89b27298d5ef3e2f -F questionId=q2 -F durationMs=1000 -F 'audio=@C:/Users/rance/AppData/Local/Temp/claude/e--medical-Medical-AI/b523be42-ac7e-46b6-8a33-f29bd9ae3dec/scratchpad/big.webm;type=audio/webm' -w '\\\\n  HTTP %{http_code}  耗时 %{time_total}s\\\\n' --max-time 300)",
+      "Bash(curl -sk -o /dev/null -w '  healthz HTTP %{http_code}\\\\n' https://medraftlab.com/healthz)",
+      "Bash(bash -n deploy/setup.sh)",
+      "Bash(scp -i /c/Users/rance/AppData/Local/Temp/claude/e--medical-Medical-AI/b523be42-ac7e-46b6-8a33-f29bd9ae3dec/scratchpad/sh.pem -o StrictHostKeyChecking=no backend/app/api/voice_recording.py ubuntu@150.158.45.106:~/Medical-AI-NEW/backend/app/api/voice_recording.py)",
+      "Bash(break)",
+      "Bash(ssh -i /c/Users/rance/AppData/Local/Temp/claude/e--medical-Medical-AI/b523be42-ac7e-46b6-8a33-f29bd9ae3dec/scratchpad/sh.pem -o StrictHostKeyChecking=no ubuntu@150.158.45.106 'cd ~/Medical-AI-NEW && grep -c \"录音暂时无法保存\" backend/app/api/voice_recording.py && sudo docker compose -f docker-compose.prod.yml up -d --build backend 2>&1 | tail -4 && sleep 10 && sudo docker ps --format \"{{.Names}}: {{.Status}}\" | grep -E \"backend|frontend\"')",
+      "Bash(ssh -i /c/Users/rance/AppData/Local/Temp/claude/e--medical-Medical-AI/b523be42-ac7e-46b6-8a33-f29bd9ae3dec/scratchpad/sh.pem -o StrictHostKeyChecking=no ubuntu@150.158.45.106 'sudo docker exec -i medical-ai-new-db-1 psql -U medai -d medai')",
+      "Bash(ssh -i /c/Users/rance/AppData/Local/Temp/claude/e--medical-Medical-AI/b523be42-ac7e-46b6-8a33-f29bd9ae3dec/scratchpad/sh.pem -o StrictHostKeyChecking=no ubuntu@150.158.45.106 'cd ~/Medical-AI-NEW/data/voice_recordings && echo \"=== 目录内容 ===\" && sudo ls -R . 2>&1 | head -30')",
+      "Bash(ssh -i /c/Users/rance/AppData/Local/Temp/claude/e--medical-Medical-AI/b523be42-ac7e-46b6-8a33-f29bd9ae3dec/scratchpad/sh.pem -o StrictHostKeyChecking=no ubuntu@150.158.45.106 'cd ~/Medical-AI-NEW/data/voice_recordings *)",
+      "Bash(ssh -i /c/Users/rance/AppData/Local/Temp/claude/e--medical-Medical-AI/b523be42-ac7e-46b6-8a33-f29bd9ae3dec/scratchpad/sh.pem -o StrictHostKeyChecking=no ubuntu@150.158.45.106 'cd ~/Medical-AI-NEW *)",
+      "Bash(mkdir -p /e/medical/Medical-AI-backups)",
+      "Bash(scp -i /c/Users/rance/AppData/Local/Temp/claude/e--medical-Medical-AI/b523be42-ac7e-46b6-8a33-f29bd9ae3dec/scratchpad/sh.pem -o StrictHostKeyChecking=no ubuntu@150.158.45.106:~/Medical-AI-NEW/backups/20260805_013758.dump /e/medical/Medical-AI-backups/)",
+      "Read(//e/medical/**)",
+      "Bash(ssh -i /c/Users/rance/AppData/Local/Temp/claude/e--medical-Medical-AI/b523be42-ac7e-46b6-8a33-f29bd9ae3dec/scratchpad/sh.pem -o StrictHostKeyChecking=no ubuntu@150.158.45.106 'md5sum ~/Medical-AI-NEW/backups/20260805_013758.dump')",
+      "Bash(awk '{print \"  remote:\", $1}')",
+      "Read(//e/medical/Medical-AI-backups/**)",
+      "Bash(awk '{print \"  local: \", $1}')",
+      "Bash(ssh -i /c/Users/rance/AppData/Local/Temp/claude/e--medical-Medical-AI/b523be42-ac7e-46b6-8a33-f29bd9ae3dec/scratchpad/sh.pem -o StrictHostKeyChecking=no ubuntu@150.158.45.106 'cd ~/Medical-AI-NEW/backups && sudo rm 20260804_033122.dump && echo \"=== 剩余备份 ===\" && ls -lh')",
+      "Bash(scp -i /c/Users/rance/AppData/Local/Temp/claude/e--medical-Medical-AI/b523be42-ac7e-46b6-8a33-f29bd9ae3dec/scratchpad/sh.pem -o StrictHostKeyChecking=no frontend/src/app/post-survey/page.tsx ubuntu@150.158.45.106:~/Medical-AI-NEW/frontend/src/app/post-survey/page.tsx)",
+      "Bash(ssh -i /c/Users/rance/AppData/Local/Temp/claude/e--medical-Medical-AI/b523be42-ac7e-46b6-8a33-f29bd9ae3dec/scratchpad/sh.pem -o StrictHostKeyChecking=no ubuntu@150.158.45.106 'cd ~/Medical-AI-NEW && echo \"服务器上 VoiceRecorderButton 的活跃引用\\(应为 0\\):\" && grep -c \"^import { VoiceRecorderButton\" frontend/src/app/post-survey/page.tsx || echo 0 *)"
+    ],
+    "defaultMode": "acceptEdits"
   },
-
   "hooks": {
     "PreToolUse": [
       {
@@ -80,6 +108,20 @@
           }
         ]
       }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "Write|Edit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python e:/medical/Medical-AI/.claude/hooks/verify_comments_only.py",
+            "timeout": 90,
+            "statusMessage": "检查是否只改了注释…"
+          }
+        ]
+      }
     ]
-  }
+  },
+  "_comment_overview": "Three things here: (1) `hooks.PreToolUse` runs block_dangerous_commands.py on every Bash/PowerShell call — blocks rm -rf, git push --force, git reset --hard, reading .env, printing $TOKEN, etc. (2) `hooks.PostToolUse` runs verify_comments_only.py after every Write/Edit — if the file is under backend/app, backend/tests, backend/alembic or frontend/src it compares the Python AST (and TS code lines) against git HEAD and warns if code changed, not just comments. Silent when clean; only speaks up on a real difference. Added because annotating files means rewriting them, and a dropped or duplicated line has twice slipped past the test suite. (3) `permissions.allow` pre-approves the read-mostly + test + build + git-local commands used most often on this project, so the assistant doesn't need to re-ask for them every turn. Anything not listed still prompts you the first time. Adapted from claude-code-bmad-foundation."
 }
